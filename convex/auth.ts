@@ -1,16 +1,19 @@
 import { Password } from "@convex-dev/auth/providers/Password";
 import { convexAuth } from "@convex-dev/auth/server";
-import type { Id } from "convex/values";
+import type { Id } from "./_generated/dataModel";
 import { sendResendEmail, getDefaultFromEmail } from "./lib/resend";
 
-async function ensureDefaultWorkspace(ctx: {
-  db: {
-    query: (table: "workspaces") => any;
-    insert: (table: "workspaces", value: Record<string, unknown>) => Promise<Id<"workspaces">>;
-    patch: (id: Id<"workspaces">, value: Record<string, unknown>) => Promise<void>;
-    insert: any;
-  };
-}, userId: Id<"users">, name: string) {
+async function ensureDefaultWorkspace(
+  ctx: {
+    db: {
+      query: (table: string) => any;
+      insert: (table: string, value: Record<string, unknown>) => Promise<any>;
+      patch: (id: string, value: Record<string, unknown>) => Promise<void>;
+    };
+  },
+  userId: Id<"users">,
+  name: string
+) {
   const existingWorkspace = await ctx.db
     .query("workspaces")
     .withIndex("by_owner", (q: any) => q.eq("ownerUserId", userId))

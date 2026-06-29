@@ -3,9 +3,11 @@
 import { Resend } from "resend";
 
 const DEFAULT_TEST_FROM = "StartupFiles <onboarding@resend.dev>";
+const env =
+  (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
 
 function requireEnv(name: string) {
-  const value = process.env[name];
+  const value = env[name];
   if (!value) {
     throw new Error(`Missing environment variable \`${name}\`.`);
   }
@@ -19,7 +21,7 @@ export async function sendResendEmail(args: {
   replyTo?: string;
 }) {
   const resend = new Resend(requireEnv("RESEND_API_KEY"));
-  const from = process.env.RESEND_FROM_EMAIL?.trim() || DEFAULT_TEST_FROM;
+  const from = env.RESEND_FROM_EMAIL?.trim() || DEFAULT_TEST_FROM;
 
   const result = await resend.emails.send({
     from,
@@ -37,5 +39,5 @@ export async function sendResendEmail(args: {
 }
 
 export function getDefaultFromEmail() {
-  return process.env.RESEND_FROM_EMAIL?.trim() || DEFAULT_TEST_FROM;
+  return env.RESEND_FROM_EMAIL?.trim() || DEFAULT_TEST_FROM;
 }

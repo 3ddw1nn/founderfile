@@ -365,7 +365,7 @@ async function getWorkspaceBundle(ctx: any, userId: GenericId<"users">): Promise
 
 function derivePhase(input: OnboardingInput): BusinessPhase {
   const productSignals = input.productLines.some(
-    (product) =>
+    (product: OnboardingInput["productLines"][number]) =>
       product.hasAdvertiserMoney ||
       product.hasRewardsOrPayouts ||
       product.hasHardwareRisk ||
