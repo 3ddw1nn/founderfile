@@ -1,8 +1,13 @@
+"use client";
+
 import Link from "next/link";
 import type { Route } from "next";
+import { useQuery } from "convex/react";
 import type { BusinessTypeConfig, SetupDocument } from "@startupfiles/shared/dashboard";
 import type { CurrentUser } from "@startupfiles/shared/domain";
+import { getSetupConfig } from "@startupfiles/shared/setup";
 import { DashboardLayout } from "./dashboard-layout";
+import { convexApi } from "../lib/convex-api";
 
 function getDocumentStatusLabel(status: SetupDocument["status"]) {
   if (status === "ready") {
@@ -23,8 +28,17 @@ export function BusinessOverviewPage({
   business: BusinessTypeConfig;
   initialUser?: CurrentUser | null;
 }) {
+  const setupConfig = getSetupConfig(business.slug);
+  const session = useQuery(convexApi.getSetupSession, { businessType: business.slug });
+  const hasSession = session !== undefined && session !== null;
+
+  // Compute real progress from setup session, falling back to config defaults
+  const totalSteps = setupConfig?.totalSteps ?? business.totalSteps;
+  const completedSteps = hasSession
+    ? session!.stepStatuses.filter((s: string) => s === "complete").length
+    : business.completedSteps;
   const completionPercent =
-    business.totalSteps > 0 ? Math.round((business.completedSteps / business.totalSteps) * 100) : 0;
+    totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
 
   return (
     <DashboardLayout
@@ -32,21 +46,21 @@ export function BusinessOverviewPage({
       description={business.summary}
       initialUser={initialUser}
       progress={{
-        currentStep: business.completedSteps,
-        totalSteps: business.totalSteps,
+        currentStep: Math.max(completedSteps, 1),
+        totalSteps,
         label: `${completionPercent}% complete`,
-        actionHref: business.available ? (`/dashboard/${business.slug}/dba-fbn` as Route) : undefined
+        actionHref: business.available ? (`/dashboard/${business.slug}/setup` as Route) : undefined
       }}
     >
       <section className="gridThree">
         <article className="surface pageSection metric">
           <span className="kicker">Completed</span>
-          <strong>{business.completedSteps}</strong>
+          <strong>{completedSteps}</strong>
           <div className="muted">Steps finished for this business type.</div>
         </article>
         <article className="surface pageSection metric">
           <span className="kicker">Remaining</span>
-          <strong>{Math.max(business.totalSteps - business.completedSteps, 0)}</strong>
+          <strong>{Math.max(totalSteps - completedSteps, 0)}</strong>
           <div className="muted">Tasks still ahead before this setup track is complete.</div>
         </article>
         <article className="surface pageSection metric">

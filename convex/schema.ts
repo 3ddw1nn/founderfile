@@ -123,6 +123,24 @@ export default defineSchema({
   })
     .index("by_workspace", ["workspaceId"])
     .index("by_workspace_task", ["workspaceId", "taskKey"]),
+  setupSessions: defineTable({
+    workspaceId: v.id("workspaces"),
+    businessType: v.string(),
+    currentStep: v.number(),
+    stepStatuses: v.array(v.string()),
+    isEntityApplication: v.optional(v.boolean()),
+    legalFirstName: v.optional(v.string()),
+    legalMiddleName: v.optional(v.string()),
+    legalLastName: v.optional(v.string()),
+    legalSuffix: v.optional(v.string()),
+    isCompleted: v.boolean(),
+    startedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index("by_workspace_and_type", ["workspaceId", "businessType"])
+    .index("by_workspace", ["workspaceId"]),
   auditEvents: defineTable({
     workspaceId: v.optional(v.id("workspaces")),
     userId: v.optional(v.id("users")),

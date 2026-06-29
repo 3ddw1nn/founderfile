@@ -78,18 +78,29 @@ export function DashboardLayout({
       (business) =>
         pathname === `/dashboard/${business.slug}` || pathname.startsWith(`/dashboard/${business.slug}/`)
     ) ?? null;
+  const setupSession = useQuery(convexApi.getSetupSession, {
+    businessType: activeBusiness?.slug ?? "sole-proprietor"
+  });
+  const hasStartedSetup = setupSession !== undefined && setupSession !== null;
   const resolvedProgress = progress ??
     (activeBusiness
       ? {
           currentStep: activeBusiness.completedSteps,
           totalSteps: activeBusiness.totalSteps,
-          actionHref: `/dashboard/${activeBusiness.slug}/dba-fbn`
+          actionHref: `/dashboard/${activeBusiness.slug}/setup` as Route,
+          actionLabel: "Start"
         }
       : {
           currentStep: 3,
           totalSteps: 10,
-          actionHref: "/dashboard/llc"
+          actionHref: "/dashboard/llc" as Route
         });
+
+  // Override action button with Start/Resume if we have setup session data
+  const effectiveHref = hasStartedSetup
+    ? (`/dashboard/${activeBusiness?.slug}/setup` as Route)
+    : (activeBusiness ? (`/dashboard/${activeBusiness.slug}/setup` as Route) : resolvedProgress.actionHref);
+  const effectiveLabel = hasStartedSetup ? "Resume" : (activeBusiness ? "Start" : resolvedProgress.actionLabel);
   const progressPercent =
     resolvedProgress.totalSteps > 0
       ? Math.round((resolvedProgress.currentStep / resolvedProgress.totalSteps) * 100)
@@ -220,9 +231,9 @@ export function DashboardLayout({
             >
               <span style={{ width: `${progressPercent}%` }} />
             </div>
-            {resolvedProgress.actionHref ? (
-              <Link href={resolvedProgress.actionHref as Route} className="buttonPrimary">
-                {resolvedProgress.actionLabel ?? (activeBusiness ? "Continue" : "Resume")}
+            {effectiveHref ? (
+              <Link href={effectiveHref as Route} className="buttonPrimary">
+                {effectiveLabel ?? "Continue"}
               </Link>
             ) : (
               <button type="button" className="buttonSecondary" disabled>

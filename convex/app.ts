@@ -241,6 +241,89 @@ export const setTaskStatus = mutation({
   }
 });
 
+export const resetProgress = mutation({
+  args: {
+    userId: v.optional(v.id("users"))
+  },
+  handler: async (ctx, args) => {
+    const userId = args.userId ?? await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("You must be signed in.");
+    }
+
+    const data = await getWorkspaceBundle(ctx, userId);
+    if (!data) {
+      throw new Error("Workspace not found.");
+    }
+
+    const now = Date.now();
+    for (const task of data.tasks) {
+      const resetStatus: TaskStatus = task.status === "not_needed" ? "not_needed" : "not_started";
+      await ctx.db.patch(task._id, {
+        status: resetStatus,
+        updatedAt: now
+      });
+    }
+
+    return true;
+  }
+});
+
+export const resetDb = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("You must be signed in.");
+
+    const user = await ctx.db.get(userId);
+    if (!user || user.role !== "owner") throw new Error("Only the owner can reset the database.");
+
+    // Delete setup sessions
+    const sessions = await ctx.db.query("setupSessions").collect();
+    for (const s of sessions) {
+      await ctx.db.delete(s._id);
+    }
+
+    // Delete roadmap tasks
+    const tasks = await ctx.db.query("roadmapTasks").collect();
+    for (const t of tasks) {
+      await ctx.db.delete(t._id);
+    }
+
+    // Delete product lines
+    const products = await ctx.db.query("productLines").collect();
+    for (const p of products) {
+      await ctx.db.delete(p._id);
+    }
+
+    // Delete founder profiles
+    const fps = await ctx.db.query("founderProfiles").collect();
+    for (const fp of fps) {
+      await ctx.db.delete(fp._id);
+    }
+
+    // Delete business profiles
+    const bps = await ctx.db.query("businessProfiles").collect();
+    for (const bp of bps) {
+      await ctx.db.delete(bp._id);
+    }
+
+    // Delete workspaces (but NOT users or auth tables)
+    const workspaces = await ctx.db.query("workspaces").collect();
+    for (const w of workspaces) {
+      await ctx.db.delete(w._id);
+    }
+
+    // Delete audit events
+    const events = await ctx.db.query("auditEvents").collect();
+    for (const e of events) {
+      await ctx.db.delete(e._id);
+    }
+
+    return true;
+  }
+});
+
 async function getWorkspaceBundle(ctx: any, userId: GenericId<"users">): Promise<WorkspaceBundle | null> {
   const workspace = await ctx.db
     .query("workspaces")

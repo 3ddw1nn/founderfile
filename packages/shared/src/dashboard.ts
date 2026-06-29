@@ -31,8 +31,8 @@ export const businessTypeConfigs: BusinessTypeConfig[] = [
     label: "Sole proprietor",
     shortLabel: "Sole prop",
     available: true,
-    totalSteps: 8,
-    completedSteps: 2,
+    totalSteps: 7,
+    completedSteps: 0,
     summary: "Best when you want to start quickly and keep the business tied directly to you.",
     nextStep: "Confirm whether you need a city license and whether your public business name requires a DBA or FBN filing.",
     milestones: [
@@ -64,7 +64,7 @@ export const businessTypeConfigs: BusinessTypeConfig[] = [
     shortLabel: "LLC",
     available: true,
     totalSteps: 10,
-    completedSteps: 4,
+    completedSteps: 0,
     summary: "Great when you want liability separation, a cleaner business identity, and room to grow.",
     nextStep: "Finalize the LLC name, line up your registered agent details, and prepare the formation filing.",
     milestones: [

@@ -7,7 +7,8 @@
     "./dashboard": "./src/dashboard.ts",
     "./domain": "./src/domain.ts",
     "./navigation": "./src/navigation.ts",
-    "./site": "./src/site.ts"
+    "./site": "./src/site.ts",
+    "./setup": "./src/setup.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
