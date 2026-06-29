@@ -26,6 +26,10 @@ function readRootEnv() {
 }
 
 const rootEnv = readRootEnv();
+const vercelAppUrl =
+  process.env.NEXT_PUBLIC_APP_URL ??
+  process.env.VERCEL_PROJECT_PRODUCTION_URL ??
+  process.env.VERCEL_URL;
 
 const nextConfig: NextConfig = {
   typedRoutes: true,
@@ -34,8 +38,9 @@ const nextConfig: NextConfig = {
       process.env.NEXT_PUBLIC_CONVEX_URL ??
       process.env.CONVEX_URL ??
       rootEnv.CONVEX_URL,
-    NEXT_PUBLIC_APP_URL:
-      process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
+    NEXT_PUBLIC_APP_URL: vercelAppUrl
+      ? `https://${vercelAppUrl.replace(/^https?:\/\//, "")}`
+      : "http://localhost:3000"
   }
 };
 

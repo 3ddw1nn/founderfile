@@ -9,6 +9,38 @@ import { FormEvent, useMemo, useState, useTransition } from "react";
 
 type AuthMode = "sign-in" | "sign-up" | "reset";
 
+function normalizeAuthError(error: unknown, mode: AuthMode) {
+  const rawMessage = error instanceof Error ? error.message : "Something went wrong.";
+  const message = rawMessage.toLowerCase();
+
+  if (
+    message.includes("unexpected token") ||
+    message.includes("not valid json") ||
+    message.includes("the page could not be found") ||
+    message.includes("404")
+  ) {
+    return "Sign-in is temporarily unavailable because the auth service route is not responding correctly.";
+  }
+
+  if (message.includes("invalid password") || message.includes("credentialssignin")) {
+    return mode === "sign-in"
+      ? "Invalid email or password."
+      : "That password does not meet the current requirements.";
+  }
+
+  if (message.includes("user already exists")) {
+    return "An account with that email already exists. Try signing in instead.";
+  }
+
+  if (message.includes("not found") || message.includes("no user")) {
+    return mode === "sign-in"
+      ? "Invalid email or password."
+      : "We couldn't find an account for that email.";
+  }
+
+  return rawMessage;
+}
+
 export function AuthShell({ mode }: { mode: AuthMode }) {
   const { signIn } = useAuthActions();
   const router = useRouter();
@@ -54,10 +86,10 @@ export function AuthShell({ mode }: { mode: AuthMode }) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const email = String(form.get("email") ?? "").trim();
-    const password = String(form.get("password") ?? "").trim();
+    const password = String(form.get("password") ?? "");
     const name = String(form.get("name") ?? "").trim();
     const code = String(form.get("code") ?? "").trim();
-    const newPassword = String(form.get("newPassword") ?? "").trim();
+    const newPassword = String(form.get("newPassword") ?? "");
 
     setError(null);
     setNotice(null);
@@ -104,8 +136,7 @@ export function AuthShell({ mode }: { mode: AuthMode }) {
         });
         router.push("/dashboard");
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Something went wrong.";
-        setError(message);
+        setError(normalizeAuthError(err, mode));
       }
     });
   };
