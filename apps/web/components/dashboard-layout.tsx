@@ -1,96 +1,248 @@
+"use client";
+
+import { useAuthActions, useAuthToken } from "@convex-dev/auth/react";
+import { useQuery } from "convex/react";
 import Link from "next/link";
 import type { Route } from "next";
-import { dashboardNavItems } from "@startupfiles/shared/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import type { CurrentUser } from "@startupfiles/shared/domain";
+import { businessTypeConfigs } from "@startupfiles/shared/dashboard";
+import { dashboardBusinessSections, dashboardPrimaryNavItems } from "@startupfiles/shared/navigation";
+import { convexApi } from "../lib/convex-api";
+import { ThemeToggle } from "./theme-toggle";
+
+function decodeJwtPayload(token: string | null): Record<string, unknown> | null {
+  if (!token) {
+    return null;
+  }
+
+  const payload = token.split(".")[1];
+  if (!payload || typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), "=");
+    return JSON.parse(window.atob(padded)) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function readStringClaim(payload: Record<string, unknown> | null, keys: string[]) {
+  for (const key of keys) {
+    const value = payload?.[key];
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  return null;
+}
 
 export function DashboardLayout({
   title,
   description,
+  showHeader = true,
+  progress,
+  initialUser = null,
   children
 }: {
   title: string;
   description: string;
+  showHeader?: boolean;
+  progress?: {
+    currentStep: number;
+    totalSteps: number;
+    label?: string;
+    actionHref?: string;
+    actionLabel?: string;
+  };
+  initialUser?: CurrentUser | null;
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const { signOut } = useAuthActions();
+  const token = useAuthToken();
+  const queriedUser = useQuery(convexApi.currentUser, {});
+  const user = queriedUser ?? initialUser;
+  const tokenPayload = decodeJwtPayload(token);
+  const tokenEmail = readStringClaim(tokenPayload, ["email", "preferred_username"]);
+  const tokenName = readStringClaim(tokenPayload, ["name"]);
+  const accountLabel = user?.email ?? tokenEmail ?? user?.name ?? tokenName ?? "Account";
+  const workspaceName = user?.name ?? tokenName ? `${user?.name ?? tokenName} workspace` : "Founder workspace";
+  const avatarLabel = accountLabel.slice(0, 1).toUpperCase();
+  const activeBusiness =
+    businessTypeConfigs.find(
+      (business) =>
+        pathname === `/dashboard/${business.slug}` || pathname.startsWith(`/dashboard/${business.slug}/`)
+    ) ?? null;
+  const resolvedProgress = progress ??
+    (activeBusiness
+      ? {
+          currentStep: activeBusiness.completedSteps,
+          totalSteps: activeBusiness.totalSteps,
+          actionHref: `/dashboard/${activeBusiness.slug}/dba-fbn`
+        }
+      : {
+          currentStep: 3,
+          totalSteps: 10,
+          actionHref: "/dashboard/llc"
+        });
+  const progressPercent =
+    resolvedProgress.totalSteps > 0
+      ? Math.round((resolvedProgress.currentStep / resolvedProgress.totalSteps) * 100)
+      : 0;
+
+  const onSignOut = async () => {
+    await signOut();
+    router.push("/sign-in");
+  };
+
   return (
-    <div style={{ padding: "20px 0 28px" }}>
-      <div className="shell">
-        <div className="dashboardShell">
-          <aside className="surface pageSection" style={{ alignSelf: "start" }}>
-            <div className="stack" style={{ marginBottom: 24 }}>
-              <div className="eyebrow">Founder Workspace</div>
-              <div>
-                <div style={{ fontWeight: 800 }}>StartupFiles</div>
-                <div className="muted" style={{ marginTop: 4 }}>
-                  Edward Lee workspace
-                </div>
-              </div>
-            </div>
+    <div className="appFrame">
+      <aside className="appSidebar">
+        <Link href="/" className="appBrand">
+          <span className="appBrandMark">SF</span>
+          <span>
+            <strong>StartupFiles</strong>
+            <span>{workspaceName}</span>
+          </span>
+        </Link>
 
-            <nav className="stack">
-              {dashboardNavItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href as Route}
-                  style={{
-                    padding: "14px 16px",
-                    borderRadius: 14,
-                    border: "1px solid rgba(49, 38, 24, 0.1)",
-                    background: "rgba(255, 250, 242, 0.75)"
-                  }}
-                >
-                  <div style={{ fontWeight: 700 }}>{item.label}</div>
-                  {item.description ? (
-                    <div className="muted" style={{ fontSize: "0.92rem", marginTop: 6 }}>
-                      {item.description}
-                    </div>
-                  ) : null}
-                </Link>
-              ))}
-            </nav>
-          </aside>
-
-          <section className="stack">
-            <div className="surface pageSection">
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 16,
-                  flexWrap: "wrap",
-                  alignItems: "flex-start"
-                }}
+        <nav className="appNav" aria-label="Dashboard">
+          {dashboardPrimaryNavItems.map((item) => {
+            const isActive = pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href as Route}
+                className={isActive ? "appNavItem active" : "appNavItem"}
               >
-                <div className="stack" style={{ maxWidth: 700 }}>
-                  <div className="eyebrow">Phase 0 Active</div>
-                  <div>
-                    <h1 className="headline" style={{ margin: 0, fontSize: "clamp(2.3rem, 6vw, 4.4rem)" }}>
-                      {title}
-                    </h1>
-                    <p className="muted" style={{ fontSize: "1.06rem", margin: "14px 0 0" }}>
-                      {description}
-                    </p>
-                  </div>
-                </div>
-                <div
-                  className="card"
-                  style={{ minWidth: 240, background: "rgba(182, 82, 47, 0.08)" }}
-                >
-                  <div className="kicker">Current operator</div>
-                  <div style={{ fontSize: "1.2rem", fontWeight: 800, marginTop: 10 }}>
-                    Edward Lee
-                  </div>
-                  <div className="muted" style={{ marginTop: 8 }}>
-                    Whale Tales Labs should stay out of the public footer until a DBA/FBN or LLC
-                    actually exists.
-                  </div>
-                </div>
-              </div>
-            </div>
+                {item.label}
+              </Link>
+            );
+          })}
 
-            {children}
-          </section>
+          <div className="appNavGroupLabel">Business types</div>
+          {dashboardBusinessSections.map((section) => {
+            const sectionIsActive = section.items.some(
+              (item) => pathname === item.href || pathname.startsWith(`${item.href}/`)
+            );
+
+            if (section.disabled) {
+              return (
+                <div key={section.id} className="appNavSection disabled" aria-disabled="true">
+                  <div className="appNavSectionSummary">
+                    <span className="appNavSectionLabel">
+                      <span>{section.label}</span>
+                    </span>
+                    {section.badge ? <span className="appNavBadge">{section.badge}</span> : null}
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <details key={section.id} className={sectionIsActive ? "appNavSection open" : "appNavSection"} open={sectionIsActive}>
+                <summary className="appNavSectionSummary">
+                  <span className="appNavSectionLabel">
+                    <span className="appNavChevron" aria-hidden="true" />
+                    <span>{section.label}</span>
+                  </span>
+                  {section.badge ? <span className="appNavBadge">{section.badge}</span> : null}
+                </summary>
+                <div className="appNavSectionItems">
+                  {section.items.map((item) => {
+                    const isActive = pathname === item.href;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href as Route}
+                        className={isActive ? "appNavSubItem active" : "appNavSubItem"}
+                      >
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </details>
+            );
+          })}
+        </nav>
+
+        <div className="appSidebarFooter">
+          <details className="accountMenu">
+            <summary>
+              <span className="accountAvatar">{avatarLabel}</span>
+              <span className="accountMeta">
+                <strong>{accountLabel}</strong>
+                <span>Account</span>
+              </span>
+              <span className="accountArrow" aria-hidden="true" />
+            </summary>
+            <div className="accountMenuPanel">
+              <Link href={"/dashboard/account" as Route}>Account settings</Link>
+              <Link href={"/dashboard/privacy" as Route}>Privacy</Link>
+              <Link href={"/dashboard/terms" as Route}>Terms</Link>
+              <Link href={"/dashboard/contact" as Route}>Contact us</Link>
+              <button type="button" onClick={onSignOut}>
+                Sign out
+              </button>
+            </div>
+          </details>
         </div>
-      </div>
+      </aside>
+
+      <main className="appMain">
+        <header className="appTopbar">
+          <div className="appTopbarLeft">
+            <ThemeToggle />
+          </div>
+          <div className="appTopbarMeta">
+            <div className="appStatus">{activeBusiness ? activeBusiness.label : "Dashboard"}</div>
+            <strong>{title || "Founder console"}</strong>
+          </div>
+          <div className="topbarProgress">
+            <div className="topbarProgressMeta">
+              <strong>
+                Step {resolvedProgress.currentStep} of {resolvedProgress.totalSteps}
+              </strong>
+              <span>{resolvedProgress.label ?? `${progressPercent}% completed`}</span>
+            </div>
+            <div
+              className="topbarProgressBar"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={resolvedProgress.totalSteps}
+              aria-valuenow={resolvedProgress.currentStep}
+            >
+              <span style={{ width: `${progressPercent}%` }} />
+            </div>
+            {resolvedProgress.actionHref ? (
+              <Link href={resolvedProgress.actionHref as Route} className="buttonPrimary">
+                {resolvedProgress.actionLabel ?? (activeBusiness ? "Continue" : "Resume")}
+              </Link>
+            ) : (
+              <button type="button" className="buttonSecondary" disabled>
+                Continue
+              </button>
+            )}
+          </div>
+        </header>
+
+        <section className="appContent stack">
+          {showHeader ? (
+            <div className="appPageIntro">
+              <div className="appStatus">{activeBusiness ? activeBusiness.label : "Dashboard"}</div>
+              <h1>{title}</h1>
+              <p>{description}</p>
+            </div>
+          ) : null}
+          {children}
+        </section>
+      </main>
     </div>
   );
 }

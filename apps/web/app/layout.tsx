@@ -3,6 +3,7 @@ import "./globals.css";
 import { ConvexAuthNextjsServerProvider } from "@convex-dev/auth/nextjs/server";
 import { siteConfig } from "@startupfiles/shared/site";
 import { ConvexProviders } from "../components/convex-providers";
+import { ThemeScript } from "../components/theme-script";
 
 export const metadata: Metadata = {
   title: {
@@ -18,8 +19,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body>
+        <ThemeScript />
         <ConvexAuthNextjsServerProvider>
           <ConvexProviders>{children}</ConvexProviders>
         </ConvexAuthNextjsServerProvider>

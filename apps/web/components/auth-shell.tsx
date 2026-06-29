@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuthActions } from "@convex-dev/auth/react";
-import { Authenticated, AuthLoading, Unauthenticated } from "convex/react";
+import { useConvexAuth } from "convex/react";
 import Link from "next/link";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
@@ -28,6 +28,14 @@ function normalizeAuthError(error: unknown, mode: AuthMode) {
       : "That password does not meet the current requirements.";
   }
 
+  if (message.includes("invalidaccountid")) {
+    return "No account was found for that email. Create an account first.";
+  }
+
+  if (mode === "sign-in" && message.includes("server error")) {
+    return "We could not sign you in with those credentials. If this is your first time here, create an account first.";
+  }
+
   if (message.includes("user already exists")) {
     return "An account with that email already exists. Try signing in instead.";
   }
@@ -43,6 +51,7 @@ function normalizeAuthError(error: unknown, mode: AuthMode) {
 
 export function AuthShell({ mode }: { mode: AuthMode }) {
   const { signIn } = useAuthActions();
+  const { isAuthenticated, isLoading } = useConvexAuth();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -144,7 +153,7 @@ export function AuthShell({ mode }: { mode: AuthMode }) {
   return (
     <div className="shell">
       <section className="surface pageSection" style={{ maxWidth: 720, margin: "0 auto" }}>
-        <Authenticated>
+        {isAuthenticated ? (
           <div className="stack">
             <div className="eyebrow">Authenticated</div>
             <h1 className="headline" style={{ margin: 0, fontSize: "clamp(2.1rem, 7vw, 4rem)" }}>
@@ -159,24 +168,23 @@ export function AuthShell({ mode }: { mode: AuthMode }) {
               </Link>
             </div>
           </div>
-        </Authenticated>
-
-        <AuthLoading>
-          <div className="stack">
-            <div className="eyebrow">Auth Loading</div>
-            <p className="muted" style={{ margin: 0 }}>
-              Checking your session with Convex Auth.
-            </p>
-          </div>
-        </AuthLoading>
-
-        <Unauthenticated>
+        ) : (
           <form className="stack" onSubmit={onSubmit}>
             <div className="eyebrow">{copy.eyebrow}</div>
             <h1 className="headline" style={{ margin: 0, fontSize: "clamp(2.2rem, 7vw, 4.2rem)" }}>
               {copy.title}
             </h1>
             <p className="muted" style={{ margin: 0 }}>{copy.subtitle}</p>
+
+            {isLoading ? (
+              <div
+                className="card"
+                style={{ borderColor: "rgba(196, 101, 53, 0.18)", color: "#7f5632" }}
+              >
+                Checking your session with Convex Auth. The sign-in form stays available while
+                this loads.
+              </div>
+            ) : null}
 
             {mode === "sign-up" ? (
               <label className="stack">
@@ -269,7 +277,7 @@ export function AuthShell({ mode }: { mode: AuthMode }) {
               </Link>
             ) : null}
           </form>
-        </Unauthenticated>
+        )}
       </section>
     </div>
   );

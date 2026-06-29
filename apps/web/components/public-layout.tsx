@@ -2,26 +2,20 @@ import Link from "next/link";
 import type { Route } from "next";
 import { publicNavItems } from "@startupfiles/shared/navigation";
 import { siteConfig } from "@startupfiles/shared/site";
+import { getCurrentUser } from "../lib/current-user";
+import { ThemeToggle } from "./theme-toggle";
 
-export function PublicLayout({
+export async function PublicLayout({
   children
 }: {
   children: React.ReactNode;
 }) {
+  const currentUser = await getCurrentUser();
+
   return (
     <div style={{ padding: "20px 0 36px" }}>
       <header className="shell">
-        <div
-          className="surface"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 20,
-            padding: "16px 22px",
-            marginBottom: 22
-          }}
-        >
+        <div className="surface publicTopbar">
           <div>
             <Link href="/" style={{ fontWeight: 800, letterSpacing: "-0.03em" }}>
               StartupFiles
@@ -30,18 +24,33 @@ export function PublicLayout({
               Guided setup workspace for California solo founders
             </div>
           </div>
-          <nav style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center" }}>
+          <nav className="publicTopbarNav">
+            <ThemeToggle />
             {publicNavItems.map((item) => (
               <Link key={item.href} href={item.href as Route} className="muted">
                 {item.label}
               </Link>
             ))}
-            <Link href="/sign-in" className="buttonSecondary">
-              Sign in
-            </Link>
-            <Link href="/sign-up" className="buttonPrimary">
-              Start your setup
-            </Link>
+            {currentUser ? (
+              <>
+                <span className="publicAccountPill">{currentUser.email}</span>
+                <Link href="/dashboard" className="buttonPrimary">
+                  <span className="consoleButtonIcon" aria-hidden="true">
+                    &gt;_
+                  </span>
+                  Console
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link href="/sign-in" className="buttonSecondary">
+                  Sign in
+                </Link>
+                <Link href="/sign-up" className="buttonPrimary">
+                  Start your setup
+                </Link>
+              </>
+            )}
           </nav>
         </div>
       </header>
