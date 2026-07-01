@@ -10,6 +10,7 @@
 
 import type * as app from "../app.js";
 import type * as auth from "../auth.js";
+import type * as cityDocuments from "../cityDocuments.js";
 import type * as cityLicenseSources from "../cityLicenseSources.js";
 import type * as documents from "../documents.js";
 import type * as http from "../http.js";
@@ -26,6 +27,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   app: typeof app;
   auth: typeof auth;
+  cityDocuments: typeof cityDocuments;
   cityLicenseSources: typeof cityLicenseSources;
   documents: typeof documents;
   http: typeof http;

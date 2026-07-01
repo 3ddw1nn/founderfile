@@ -74,6 +74,61 @@ type NotificationDoc = {
   createdAt: number;
 };
 
+export type FeeRow = { tier: string; fee: string; detail: string };
+
+export type FormTemplate = {
+  analyzedAt?: number;
+  model?: string;
+  fields?: Array<{
+    id: string;
+    label: string;
+    type: string;
+    required: boolean;
+    options?: string[];
+    notes?: string;
+  }>;
+  fees?: Array<{ tier: string; fee: string; notes?: string }>;
+  requirements?: string[];
+  processingTime?: string;
+  renewalPeriod?: string;
+  notes?: string;
+};
+
+export type CityDocument = {
+  _id: string;
+  cityReviewId: string;
+  city: string;
+  documentType:
+    | "license_application"
+    | "fee_schedule"
+    | "requirements_checklist"
+    | "tax_application"
+    | "renewal_form"
+    | "home_occupation_permit"
+    | "zoning_info"
+    | "general_info"
+    | "other";
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  storageId: string;
+  url: string | null;
+  uploadedAt: number;
+  createdAt: number;
+};
+
+export const CITY_DOC_TYPE_LABELS: Record<CityDocument["documentType"], string> = {
+  license_application: "License Application",
+  fee_schedule: "Fee Schedule",
+  requirements_checklist: "Requirements Checklist",
+  tax_application: "Tax Application",
+  renewal_form: "Renewal Form",
+  home_occupation_permit: "Home Occupation",
+  zoning_info: "Zoning Info",
+  general_info: "General Info",
+  other: "Other",
+};
+
 export type CityLicenseSourceReview = {
   _id: string;
   city: string;
@@ -84,10 +139,14 @@ export type CityLicenseSourceReview = {
   retrievalStatus: "not_run" | "retrieved" | "partial" | "cant_retrieve" | "error";
   businessLicenseUrl: string;
   applicationUrl: string;
+  applicationPdfUrl?: string;
   feeUrl: string;
   checklistUrl: string;
   downloadUrl: string;
   feeSummary: string;
+  feeTable?: FeeRow[];
+  documentLinks?: Array<{ label: string; url: string }>;
+  formTemplate?: FormTemplate;
   requirementsSummary: string;
   applicationFields: string[];
   scraperNotes: string;
@@ -104,10 +163,13 @@ export type CityLicenseSourceReviewInput = {
   retrievalStatus: CityLicenseSourceReview["retrievalStatus"];
   businessLicenseUrl: string;
   applicationUrl: string;
+  applicationPdfUrl?: string;
   feeUrl: string;
   checklistUrl: string;
   downloadUrl: string;
   feeSummary: string;
+  feeTable: FeeRow[];
+  documentLinks?: Array<{ label: string; url: string }>;
   requirementsSummary: string;
   applicationFields: string[];
   scraperNotes: string;
@@ -203,7 +265,14 @@ export const convexApi = {
     },
     CityLicenseSourceReview[]
   >("cityLicenseSources:listTopCityReviews"),
+  clearCityReviews: makeFunctionReference<"mutation", Record<string, never>, { deleted: number }>("cityLicenseSources:clearCityReviews"),
+  deleteCity: makeFunctionReference<"mutation", { reviewId: string }, boolean>("cityLicenseSources:deleteCity"),
   seedTopCityReviews: makeFunctionReference<"mutation", Record<string, never>, { inserted: number }>("cityLicenseSources:seedTopCityReviews"),
+  seedSelectedCities: makeFunctionReference<
+    "mutation",
+    { cityNames: string[] },
+    { inserted: number; attempted: number }
+  >("cityLicenseSources:seedSelectedCities"),
   updateCityLicenseReview: makeFunctionReference<
     "mutation",
     CityLicenseSourceReviewInput & { reviewId: string },
@@ -222,5 +291,61 @@ export const convexApi = {
     "action",
     { reviewId: string },
     { retrievalStatus: string; applicationUrl: string; feeUrl: string; businessLicenseUrl: string }
-  >("cityLicenseSources:scrapeCity")
+  >("cityLicenseSources:scrapeCity"),
+  generateCityDocumentUploadUrl: makeFunctionReference<"mutation", Record<string, never>, string>(
+    "cityDocuments:generateUploadUrl"
+  ),
+  saveCityDocument: makeFunctionReference<
+    "mutation",
+    {
+      cityReviewId: string;
+      city: string;
+      documentType: string;
+      fileName: string;
+      mimeType: string;
+      fileSize: number;
+      storageId: string;
+    },
+    string
+  >("cityDocuments:saveDocument"),
+  listCityDocuments: makeFunctionReference<
+    "query",
+    { cityReviewId: string },
+    CityDocument[]
+  >("cityDocuments:listDocuments"),
+  listCityDocumentCounts: makeFunctionReference<
+    "query",
+    Record<string, never>,
+    Record<string, number>
+  >("cityDocuments:listDocumentCounts"),
+  updateCityDocumentType: makeFunctionReference<
+    "mutation",
+    { documentId: string; documentType: string },
+    boolean
+  >("cityDocuments:updateDocumentType"),
+  deleteCityDocument: makeFunctionReference<
+    "mutation",
+    { documentId: string },
+    boolean
+  >("cityDocuments:deleteDocument"),
+  listCityApplicationSources: makeFunctionReference<
+    "query",
+    Record<string, never>,
+    Record<string, boolean>
+  >("cityDocuments:listCityApplicationSources"),
+  analyzeDocumentsForCity: makeFunctionReference<
+    "action",
+    { cityReviewId: string; modelProvider?: string; applicationSource?: "url" | "file"; applicationUrl?: string },
+    Record<string, unknown>
+  >("cityDocuments:analyzeDocuments"),
+  analyzeDocumentsFromSources: makeFunctionReference<
+    "action",
+    { cityReviewId: string; feeUrl?: string; customLinks?: Array<{ label: string; url: string }> },
+    { feeSummary: string; requirementsSummary: string; notes: string }
+  >("cityDocuments:analyzeDocumentsForCity"),
+  parseFeeText: makeFunctionReference<
+    "action",
+    { feeSummary: string },
+    Array<{ tier: string; fee: string; detail: string }>
+  >("cityDocuments:parseFeeText"),
 };

@@ -221,16 +221,27 @@ export default defineSchema({
     ),
     businessLicenseUrl: v.string(),
     applicationUrl: v.string(),
+    applicationPdfUrl: v.optional(v.string()),
     feeUrl: v.string(),
     checklistUrl: v.string(),
     downloadUrl: v.string(),
     feeSummary: v.string(),
+    feeTable: v.optional(v.array(v.object({
+      tier: v.string(),
+      fee: v.string(),
+      detail: v.string()
+    }))),
+    documentLinks: v.optional(v.array(v.object({
+      label: v.string(),
+      url: v.string(),
+    }))),
     requirementsSummary: v.string(),
     applicationFields: v.array(v.string()),
     scraperNotes: v.string(),
     reviewerNotes: v.string(),
     confidence: v.number(),
     lastScrapedAt: v.optional(v.number()),
+    formTemplate: v.optional(v.any()),
     approvedAt: v.optional(v.number()),
     approvedBy: v.optional(v.id("users")),
     createdAt: v.number(),
@@ -238,5 +249,26 @@ export default defineSchema({
   })
     .index("by_city", ["city"])
     .index("by_status", ["status"])
-    .index("by_population_rank", ["populationRank"])
+    .index("by_population_rank", ["populationRank"]),
+  cityDocuments: defineTable({
+    cityReviewId: v.id("cityLicenseSourceReviews"),
+    city: v.string(),
+    documentType: v.union(
+      v.literal("license_application"),
+      v.literal("fee_schedule"),
+      v.literal("requirements_checklist"),
+      v.literal("tax_application"),
+      v.literal("renewal_form"),
+      v.literal("home_occupation_permit"),
+      v.literal("zoning_info"),
+      v.literal("general_info"),
+      v.literal("other")
+    ),
+    fileName: v.string(),
+    mimeType: v.string(),
+    fileSize: v.number(),
+    storageId: v.id("_storage"),
+    uploadedAt: v.number(),
+    createdAt: v.number()
+  }).index("by_city_review", ["cityReviewId"])
 });

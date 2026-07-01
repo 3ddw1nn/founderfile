@@ -284,8 +284,7 @@ export function DashboardLayout({
               <div className="mt-0.5 grid gap-1 border-l border-[color-mix(in_srgb,var(--border)_80%,transparent)] pl-[18px]">
                 {[
                   { href: "/admin", label: "Overview" },
-                  { href: "/admin/city-license-sources", label: "City licenses" },
-                  { href: "/admin/sources", label: "Sources" },
+                  { href: "/admin/city-license-sources", label: "City Scrapes" },
                   { href: "/admin/templates", label: "Templates" }
                 ].map((item) => {
                   const isActive = pathname === item.href;

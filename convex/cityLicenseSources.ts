@@ -3,6 +3,12 @@ import { mutationGeneric, queryGeneric } from "convex/server";
 import { v } from "convex/values";
 import { action, internalMutation, internalQuery } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { CALIFORNIA_CITIES } from "@startupfiles/shared/california-cities";
+
+// Convex provides process.env at runtime for environment variables
+declare const process: {
+  env: Record<string, string | undefined>;
+};
 
 const query = queryGeneric;
 const mutation = mutationGeneric;
@@ -30,15 +36,20 @@ const retrievalStatusValidator = v.union(
   v.literal("error")
 );
 
+const feeRowValidator = v.object({ tier: v.string(), fee: v.string(), detail: v.string() });
+
 const editableFields = {
   sourceKind: sourceKindValidator,
   retrievalStatus: retrievalStatusValidator,
   businessLicenseUrl: v.string(),
   applicationUrl: v.string(),
+  applicationPdfUrl: v.optional(v.string()),
   feeUrl: v.string(),
   checklistUrl: v.string(),
   downloadUrl: v.string(),
   feeSummary: v.string(),
+  feeTable: v.optional(v.array(feeRowValidator)),
+  documentLinks: v.optional(v.array(v.object({ label: v.string(), url: v.string() }))),
   requirementsSummary: v.string(),
   applicationFields: v.array(v.string()),
   scraperNotes: v.string(),
@@ -75,274 +86,8 @@ const TOP_CITY_SEEDS: SeedReview[] = [
     city: "Los Angeles",
     county: "Los Angeles",
     populationRank: 1,
-    sourceKind: "js",
-    retrievalStatus: "partial",
-    businessLicenseUrl: "https://business.lacity.gov/plan-business/register-your-business/business-tax-registration-certificate",
-    applicationUrl: "https://latax.lacity.org/businessregapp/eappreg_criteria",
-    feeUrl: "https://finance.lacity.gov/tax-education/business-taxes/know-your-rates",
-    checklistUrl: "https://finance.lacity.gov/tax-education/new-business-registration/how-register-btrc",
-    downloadUrl: "",
-    feeSummary: "Business tax varies by classification and gross receipts. Needs reviewer confirmation before template use.",
-    requirementsSummary: "City Business Tax Registration Certificate is required for businesses operating in Los Angeles.",
-    applicationFields: ["legal name", "business address", "mailing address", "tax ID", "business activity", "start date"],
-    scraperNotes: "Application portal is JS-backed; store the official portal URL and review manually.",
-    confidence: 0.82
-  },
-  {
-    city: "San Diego",
-    county: "San Diego",
-    populationRank: 2,
-    sourceKind: "html",
-    retrievalStatus: "retrieved",
-    businessLicenseUrl: "https://www.sandiego.gov/treasurer/taxesfees/btax",
-    applicationUrl: "https://pay.sandiego.gov/BTaxApp",
-    feeUrl: "https://www.sandiego.gov/treasurer/taxesfees/btax/btaxhow",
-    checklistUrl: "https://www.sandiego.gov/treasurer/taxesfees/btax/btaxhow",
-    downloadUrl: "",
-    feeSummary: "Fee depends on employee count. Existing estimate: about $34-$125 per year.",
-    requirementsSummary: "Businesses operating in San Diego need a Business Tax Certificate.",
-    applicationFields: ["business name", "business address", "owner information", "start date", "employee count"],
-    scraperNotes: "Official application and instruction pages are separate.",
-    confidence: 0.88
-  },
-  {
-    city: "San Jose",
-    county: "Santa Clara",
-    populationRank: 3,
-    sourceKind: "js",
-    retrievalStatus: "partial",
-    businessLicenseUrl: "https://www.sanjoseca.gov/your-government/departments-offices/finance/business-tax-registration",
-    applicationUrl: "https://businesstax.sanjoseca.gov/",
-    feeUrl: "https://www.sanjoseca.gov/your-government/departments-offices/finance/business-tax-registration/business-tax-rates",
-    checklistUrl: "https://www.sanjoseca.gov/your-government/departments-offices/finance/business-tax-registration/register-for-a-business-tax-certificate",
-    downloadUrl: "",
-    feeSummary: "Existing estimate: about $195 per year base plus employee-based charges. Needs current rate check.",
-    requirementsSummary: "Businesses conducting work in San Jose must register for a Business Tax Certificate.",
-    applicationFields: ["business name", "business location", "mailing address", "ownership type", "activity", "employee count"],
-    scraperNotes: "Tax portal is separate from city content pages.",
-    confidence: 0.82
-  },
-  {
-    city: "San Francisco",
-    county: "San Francisco",
-    populationRank: 4,
-    sourceKind: "js",
-    retrievalStatus: "partial",
-    businessLicenseUrl: "https://sftreasurer.org/business/register-business",
-    applicationUrl: "https://etaxstatement.sfgov.org/accountupdate/newbusinessregistration/",
-    feeUrl: "https://sftreasurer.org/business/register-business",
-    checklistUrl: "https://sftreasurer.org/business/register-business",
-    downloadUrl: "",
-    feeSummary: "Registration fee is based on gross receipts. Existing estimate starts at $55+.",
-    requirementsSummary: "Businesses operating in San Francisco must register with the Treasurer and Tax Collector.",
-    applicationFields: ["owner details", "business location", "activity", "gross receipts estimate", "start date"],
-    scraperNotes: "Official registration portal is a separate app; review portal fields manually.",
-    confidence: 0.78
-  },
-  {
-    city: "Fresno",
-    county: "Fresno",
-    populationRank: 5,
-    sourceKind: "pdf",
-    retrievalStatus: "partial",
-    businessLicenseUrl: "https://www.fresno.gov/finance/business-license-and-tax-certificate/",
-    applicationUrl: "https://businesstax.fresno.gov/Webblappformfresno/",
-    feeUrl: "https://www.fresno.gov/wp-content/uploads/2024/07/MFS-Finance_580-ED-2024.07.01-1.pdf",
-    checklistUrl: "https://www.fresno.gov/business-checklist/",
-    downloadUrl: "https://www.fresno.gov/wp-content/uploads/2024/07/MFS-Finance_580-ED-2024.07.01-1.pdf",
-    feeSummary: "Fee data is in the city master fee schedule PDF. Automatic extraction not guaranteed.",
-    requirementsSummary: "Business Tax Certificate application may require zone clearance before payment.",
-    applicationFields: ["business name", "location", "owner information", "business activity", "zone clearance"],
-    scraperNotes: "Fee page is a PDF; link is stored for download/review.",
-    confidence: 0.76
-  },
-  {
-    city: "Sacramento",
-    county: "Sacramento",
-    populationRank: 6,
-    sourceKind: "pdf",
-    retrievalStatus: "partial",
-    businessLicenseUrl: "https://www.cityofsacramento.gov/finance/revenue/business-operations-tax",
-    applicationUrl: "https://www.cityofsacramento.gov/content/dam/portal/finance/Revenue/permits-and-taxes/BUSINESS-TAX-app_Revised-12-2019-FILLABLE.pdf",
-    feeUrl: "https://www.cityofsacramento.gov/finance/revenue/business-operations-tax",
-    checklistUrl: "",
-    downloadUrl: "https://www.cityofsacramento.gov/content/dam/portal/finance/Revenue/permits-and-taxes/BUSINESS-TAX-app_Revised-12-2019-FILLABLE.pdf",
-    feeSummary: "City uses Business Operations Tax rather than a standard business license. Rates need template-specific review.",
-    requirementsSummary: "Most businesses operating in the city need a Business Operations Tax account.",
-    applicationFields: ["business owner", "business address", "mailing address", "business description", "start date"],
-    scraperNotes: "Application is a fillable PDF; store download URL and mark extraction as partial.",
-    confidence: 0.74
-  },
-  {
-    city: "Long Beach",
-    county: "Los Angeles",
-    populationRank: 7,
-    sourceKind: "cms",
-    retrievalStatus: "retrieved",
-    businessLicenseUrl: "https://www.longbeach.gov/finance/business-info/business-licenses/apply-for-a-business-license/",
-    applicationUrl: "https://www.longbeach.gov/finance/business-info/business-licenses/apply-for-a-business-license/",
-    feeUrl: "https://www.longbeach.gov/finance/business-info/business-licenses/taxes--fees/",
-    checklistUrl: "https://www.longbeach.gov/finance/business-info/business-licenses/business-license-application-instructions/",
-    downloadUrl: "",
-    feeSummary: "Rates vary by business type. Existing estimate: about $33-$300 per year.",
-    requirementsSummary: "Business license required for businesses operating in Long Beach.",
-    applicationFields: ["business type", "location", "owner", "employees", "business activity"],
-    scraperNotes: "City CMS separates application, tax/fee, and instruction pages.",
-    confidence: 0.86
-  },
-  {
-    city: "Oakland",
-    county: "Alameda",
-    populationRank: 8,
-    sourceKind: "cms",
-    retrievalStatus: "partial",
-    businessLicenseUrl: "https://www.oaklandca.gov/Business/Business-Taxes-Licenses-Permits",
-    applicationUrl: "https://www.oaklandca.gov/Business/Business-Taxes-Licenses-Permits",
-    feeUrl: "https://www.oaklandca.gov/Business/Business-Taxes-Licenses-Permits",
-    checklistUrl: "",
-    downloadUrl: "",
-    feeSummary: "Existing estimate: minimum tax plus gross receipts. Needs exact fee/rate page.",
-    requirementsSummary: "Businesses operating in Oakland generally need a business tax certificate.",
-    applicationFields: ["business name", "owner", "address", "activity", "gross receipts"],
-    scraperNotes: "Old service URL redirects to a broad city business page; needs second-pass exact links.",
-    confidence: 0.58
-  },
-  {
-    city: "Bakersfield",
-    county: "Kern",
-    populationRank: 9,
     sourceKind: "unknown",
     retrievalStatus: "not_run",
-    businessLicenseUrl: "https://www.bakersfieldcity.us/gov/depts/finance/business_license.htm",
-    applicationUrl: "",
-    feeUrl: "",
-    checklistUrl: "",
-    downloadUrl: "",
-    feeSummary: "Not scraped yet.",
-    requirementsSummary: "Needs official source verification.",
-    applicationFields: [],
-    scraperNotes: "Seeded from existing static city data; run SerpApi scrape before approval.",
-    confidence: 0.2
-  },
-  {
-    city: "Anaheim",
-    county: "Orange",
-    populationRank: 10,
-    sourceKind: "cms",
-    retrievalStatus: "partial",
-    businessLicenseUrl: "https://www.anaheim.net/1281/Business-License",
-    applicationUrl: "https://www.anaheim.net/1281/Business-License",
-    feeUrl: "https://www.anaheim.net/1281/Business-License",
-    checklistUrl: "",
-    downloadUrl: "",
-    feeSummary: "Existing estimate: about $49 per year. Needs exact fee source verification.",
-    requirementsSummary: "Needs official source verification before template use.",
-    applicationFields: [],
-    scraperNotes: "Broad official page found; exact fee/checklist links still need review.",
-    confidence: 0.55
-  },
-  {
-    city: "Santa Ana",
-    county: "Orange",
-    populationRank: 11,
-    sourceKind: "cms",
-    retrievalStatus: "partial",
-    businessLicenseUrl: "https://www.santa-ana.org/finance-department/business-license/",
-    applicationUrl: "https://www.santa-ana.org/finance-department/business-license/",
-    feeUrl: "https://www.santa-ana.org/finance-department/business-license/",
-    checklistUrl: "",
-    downloadUrl: "",
-    feeSummary: "Existing estimate: about $95 per year. Needs exact fee source verification.",
-    requirementsSummary: "Needs official source verification before template use.",
-    applicationFields: [],
-    scraperNotes: "Broad official page found; exact fee/checklist links still need review.",
-    confidence: 0.55
-  },
-  {
-    city: "Riverside",
-    county: "Riverside",
-    populationRank: 12,
-    sourceKind: "cms",
-    retrievalStatus: "partial",
-    businessLicenseUrl: "https://riversideca.gov/finance/business-tax",
-    applicationUrl: "https://riversideca.gov/finance/business-tax",
-    feeUrl: "https://riversideca.gov/finance/business-tax",
-    checklistUrl: "",
-    downloadUrl: "",
-    feeSummary: "Existing estimate: about $80-$200 per year. Needs exact fee source verification.",
-    requirementsSummary: "Needs official source verification before template use.",
-    applicationFields: [],
-    scraperNotes: "Broad official page found; exact fee/checklist links still need review.",
-    confidence: 0.55
-  },
-  {
-    city: "Stockton",
-    county: "San Joaquin",
-    populationRank: 13,
-    sourceKind: "cms",
-    retrievalStatus: "partial",
-    businessLicenseUrl: "https://www.stocktonca.gov/government/departments/administrativeServices/businessLicense.html",
-    applicationUrl: "https://www.stocktonca.gov/government/departments/administrativeServices/businessLicense.html",
-    feeUrl: "https://www.stocktonca.gov/government/departments/administrativeServices/businessLicense.html",
-    checklistUrl: "",
-    downloadUrl: "",
-    feeSummary: "Existing estimate: about $50-$200 per year. Needs exact fee source verification.",
-    requirementsSummary: "Needs official source verification before template use.",
-    applicationFields: [],
-    scraperNotes: "Broad official page found; exact fee/checklist links still need review.",
-    confidence: 0.55
-  },
-  {
-    city: "Irvine",
-    county: "Orange",
-    populationRank: 14,
-    sourceKind: "js",
-    retrievalStatus: "partial",
-    businessLicenseUrl: "https://secure.cityofirvine.org/businesslicenseapplication/",
-    applicationUrl: "https://secure.cityofirvine.org/businesslicenseapplication/",
-    feeUrl: "https://secure.cityofirvine.org/businesslicenseapplication/",
-    checklistUrl: "",
-    downloadUrl: "",
-    feeSummary: "Existing data: $76-$152 new, with renewal fees by employee count. Needs current source review.",
-    requirementsSummary: "Apply within 60 days of start date. City portal collects business and owner details.",
-    applicationFields: ["business address", "start date", "activity description", "business category", "owner information"],
-    scraperNotes: "Existing static data is detailed, but the portal should be reviewed before approval.",
-    confidence: 0.62
-  },
-  {
-    city: "Chula Vista",
-    county: "San Diego",
-    populationRank: 15,
-    sourceKind: "cms",
-    retrievalStatus: "partial",
-    businessLicenseUrl: "https://www.chulavistaca.gov/departments/finance/business-license",
-    applicationUrl: "https://www.chulavistaca.gov/departments/finance/business-license",
-    feeUrl: "https://www.chulavistaca.gov/departments/finance/business-license",
-    checklistUrl: "",
-    downloadUrl: "",
-    feeSummary: "Existing estimate: about $45-$200 per year. Needs exact fee source verification.",
-    requirementsSummary: "Needs official source verification before template use.",
-    applicationFields: [],
-    scraperNotes: "Broad official page found; exact fee/checklist links still need review.",
-    confidence: 0.55
-  },
-  ...[
-    ["Fremont", "Alameda", 16],
-    ["Santa Clarita", "Los Angeles", 17],
-    ["San Bernardino", "San Bernardino", 18],
-    ["Modesto", "Stanislaus", 19],
-    ["Fontana", "San Bernardino", 20],
-    ["Moreno Valley", "Riverside", 21],
-    ["Oxnard", "Ventura", 22],
-    ["Huntington Beach", "Orange", 23],
-    ["Glendale", "Los Angeles", 24],
-    ["Santa Rosa", "Sonoma", 25]
-  ].map(([city, county, populationRank]) => ({
-    city: city as string,
-    county: county as string,
-    populationRank: populationRank as number,
-    sourceKind: "unknown" as const,
-    retrievalStatus: "not_run" as const,
     businessLicenseUrl: "",
     applicationUrl: "",
     feeUrl: "",
@@ -351,9 +96,77 @@ const TOP_CITY_SEEDS: SeedReview[] = [
     feeSummary: "Not scraped yet.",
     requirementsSummary: "Needs SerpApi discovery and official source verification.",
     applicationFields: [],
-    scraperNotes: "Top-25 placeholder row. The scraper/cron should populate this record before approval.",
+    scraperNotes: "5-city pilot. Run scraper to populate.",
     confidence: 0
-  }))
+  },
+  {
+    city: "San Diego",
+    county: "San Diego",
+    populationRank: 2,
+    sourceKind: "unknown",
+    retrievalStatus: "not_run",
+    businessLicenseUrl: "",
+    applicationUrl: "",
+    feeUrl: "",
+    checklistUrl: "",
+    downloadUrl: "",
+    feeSummary: "Not scraped yet.",
+    requirementsSummary: "Needs SerpApi discovery and official source verification.",
+    applicationFields: [],
+    scraperNotes: "5-city pilot. Run scraper to populate.",
+    confidence: 0
+  },
+  {
+    city: "San Francisco",
+    county: "San Francisco",
+    populationRank: 4,
+    sourceKind: "unknown",
+    retrievalStatus: "not_run",
+    businessLicenseUrl: "",
+    applicationUrl: "",
+    feeUrl: "",
+    checklistUrl: "",
+    downloadUrl: "",
+    feeSummary: "Not scraped yet.",
+    requirementsSummary: "Needs SerpApi discovery and official source verification.",
+    applicationFields: [],
+    scraperNotes: "5-city pilot. Run scraper to populate.",
+    confidence: 0
+  },
+  {
+    city: "Irvine",
+    county: "Orange",
+    populationRank: 14,
+    sourceKind: "unknown",
+    retrievalStatus: "not_run",
+    businessLicenseUrl: "",
+    applicationUrl: "",
+    feeUrl: "",
+    checklistUrl: "",
+    downloadUrl: "",
+    feeSummary: "Not scraped yet.",
+    requirementsSummary: "Needs SerpApi discovery and official source verification.",
+    applicationFields: [],
+    scraperNotes: "5-city pilot. Run scraper to populate.",
+    confidence: 0
+  },
+  {
+    city: "Costa Mesa",
+    county: "Orange",
+    populationRank: 26,
+    sourceKind: "unknown",
+    retrievalStatus: "not_run",
+    businessLicenseUrl: "",
+    applicationUrl: "",
+    feeUrl: "",
+    checklistUrl: "",
+    downloadUrl: "",
+    feeSummary: "Not scraped yet.",
+    requirementsSummary: "Needs SerpApi discovery and official source verification.",
+    applicationFields: [],
+    scraperNotes: "5-city pilot. Run scraper to populate.",
+    confidence: 0
+  }
 ];
 
 async function requireAdmin(ctx: any) {
@@ -375,7 +188,7 @@ export const listTopCityReviews = query({
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const limit = Math.min(args.limit ?? 25, 100);
+    const limit = Math.min(args.limit ?? 100, 500);
 
     if (args.status) {
       return await ctx.db
@@ -391,24 +204,42 @@ export const listTopCityReviews = query({
   }
 });
 
+export const clearCityReviews = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+    const all = await ctx.db.query("cityLicenseSourceReviews").collect();
+    for (const doc of all) await ctx.db.delete(doc._id);
+    return { deleted: all.length };
+  }
+});
+
+export const deleteCity = mutation({
+  args: { reviewId: v.id("cityLicenseSourceReviews") },
+  handler: async (ctx, { reviewId }) => {
+    await requireAdmin(ctx);
+    await ctx.db.delete(reviewId);
+    return true;
+  }
+});
+
 export const seedTopCityReviews = mutation({
   args: {},
   handler: async (ctx) => {
     const userId = await requireAdmin(ctx);
     const now = Date.now();
+
+    // Clear existing records before reseeding
+    const existing = await ctx.db.query("cityLicenseSourceReviews").collect();
+    for (const doc of existing) {
+      await ctx.db.delete(doc._id);
+    }
+
     let inserted = 0;
-
     for (const seed of TOP_CITY_SEEDS) {
-      const existing = await ctx.db
-        .query("cityLicenseSourceReviews")
-        .withIndex("by_city", (q: any) => q.eq("city", seed.city))
-        .unique();
-
-      if (existing) continue;
-
       await ctx.db.insert("cityLicenseSourceReviews", {
         ...seed,
-        status: seed.retrievalStatus === "retrieved" ? "pending" : "needs_review",
+        status: "needs_review",
         reviewerNotes: "",
         createdAt: now,
         updatedAt: now
@@ -425,6 +256,68 @@ export const seedTopCityReviews = mutation({
     });
 
     return { inserted };
+  }
+});
+
+export const seedSelectedCities = mutation({
+  args: { cityNames: v.array(v.string()) },
+  handler: async (ctx, { cityNames }) => {
+    const userId = await requireAdmin(ctx);
+    const now = Date.now();
+
+    // Build a map of city name → rank for population ranking
+    const cityRankMap = new Map<string, number>();
+    CALIFORNIA_CITIES.forEach((city, idx) => {
+      cityRankMap.set(city.name.toLowerCase(), idx + 1);
+    });
+
+    let inserted = 0;
+    for (const cityName of cityNames) {
+      // Check if city already exists
+      const existing = await ctx.db
+        .query("cityLicenseSourceReviews")
+        .withIndex("by_city", (q: any) => q.eq("city", cityName))
+        .first();
+
+      if (existing) continue;
+
+      // Find city in CALIFORNIA_CITIES to get county
+      const caCity = CALIFORNIA_CITIES.find(c => c.name === cityName);
+      if (!caCity) continue;
+
+      await ctx.db.insert("cityLicenseSourceReviews", {
+        city: cityName,
+        county: caCity.county,
+        populationRank: cityRankMap.get(cityName.toLowerCase()) || 999,
+        status: "needs_review",
+        sourceKind: "unknown",
+        retrievalStatus: "not_run",
+        businessLicenseUrl: "",
+        applicationUrl: "",
+        feeUrl: "",
+        checklistUrl: "",
+        downloadUrl: "",
+        feeSummary: "Not scraped yet.",
+        requirementsSummary: "Needs SerpApi discovery and official source verification.",
+        applicationFields: [],
+        scraperNotes: "Added via seed selection.",
+        reviewerNotes: "",
+        confidence: 0,
+        createdAt: now,
+        updatedAt: now
+      });
+      inserted += 1;
+    }
+
+    await ctx.db.insert("auditEvents", {
+      userId,
+      action: "city_license_reviews.seed_selected",
+      entityType: "cityLicenseSourceReviews",
+      metadata: { inserted, count: cityNames.length },
+      createdAt: now
+    });
+
+    return { inserted, attempted: cityNames.length };
   }
 });
 
@@ -514,10 +407,12 @@ export const applyScrapedData = internalMutation({
     retrievalStatus: v.union(v.literal("retrieved"), v.literal("partial"), v.literal("error")),
     businessLicenseUrl: v.string(),
     applicationUrl: v.string(),
+    applicationPdfUrl: v.optional(v.string()),
     feeUrl: v.string(),
     checklistUrl: v.string(),
     downloadUrl: v.string(),
     feeSummary: v.string(),
+    feeTable: v.optional(v.array(feeRowValidator)),
     scraperNotes: v.string(),
     confidence: v.number()
   },
@@ -540,6 +435,7 @@ export const applyScrapedData = internalMutation({
 function classifyUrls(results: Array<{ link?: string; title?: string; snippet?: string }>) {
   let businessLicenseUrl = "";
   let applicationUrl = "";
+  let applicationPdfUrl = "";
   let feeUrl = "";
   let checklistUrl = "";
   let downloadUrl = "";
@@ -572,6 +468,13 @@ function classifyUrls(results: Array<{ link?: string; title?: string; snippet?: 
     )) {
       applicationUrl = url;
       sourceKind = isPdf ? "pdf" : "html";
+    }
+
+    // Application PDF form (not fee schedule)
+    if (!applicationPdfUrl && isPdf && (
+      title.includes("application") || title.includes("form") || title.includes("fillable")
+    ) && !(title.includes("fee") || title.includes("schedule") || title.includes("rate"))) {
+      applicationPdfUrl = url;
     }
 
     // PDF fee schedule
@@ -615,7 +518,214 @@ function classifyUrls(results: Array<{ link?: string; title?: string; snippet?: 
     }
   }
 
-  return { businessLicenseUrl, applicationUrl, feeUrl, checklistUrl, downloadUrl, sourceKind };
+  return { businessLicenseUrl, applicationUrl, applicationPdfUrl, feeUrl, checklistUrl, downloadUrl, sourceKind };
+}
+
+// ─── Fee page fetcher: fetches a URL and extracts dollar-amount context ────
+
+async function extractFeeFromPage(url: string): Promise<string> {
+  if (!url) return "";
+  const isPdf = url.toLowerCase().endsWith(".pdf");
+  if (isPdf) return "[PDF fee schedule — amounts in download URL]";
+
+  const tryFetch = async (ua: string) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 9000);
+    try {
+      const res = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          "User-Agent": ua,
+          "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9",
+          "Accept-Language": "en-US,en;q=0.9"
+        }
+      });
+      clearTimeout(timer);
+      return res;
+    } catch {
+      clearTimeout(timer);
+      return null;
+    }
+  };
+
+  // Try a real browser UA first, then a simpler one as fallback
+  let res = await tryFetch(
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+  );
+  if (!res || !res.ok) {
+    res = await tryFetch("Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)");
+  }
+  if (!res || !res.ok) return "";
+
+  const ct = res.headers.get("content-type") ?? "";
+  if (ct.includes("pdf")) return "[PDF fee schedule — amounts in download URL]";
+  if (!ct.includes("html") && !ct.includes("text")) return "";
+
+  const html = await res.text();
+
+  // Strip scripts, styles, nav, header, footer boilerplate, then all tags
+  const clean = html
+    .replace(/<(script|style|nav|header|footer|noscript|aside)[^>]*>[\s\S]*?<\/\1>/gi, " ")
+    // Preserve table structure: replace <tr> and <td>/<th> with pipe delimiters before stripping
+    .replace(/<\/tr>/gi, "\n").replace(/<\/(td|th)>/gi, " | ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&amp;/g, "&").replace(/&nbsp;/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&#\d+;/g, " ").replace(/&[a-z]+;/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  // Split into lines for table-style parsing
+  const textLines = clean.split("\n").map(l => l.trim()).filter(Boolean);
+
+  const feeKeywords = /employee|gross|receipt|annual|per.?year|renewal|new.?bus|home.?based|commercial|tier|class|categor|base.?fee|flat|minimum|maximum|permit|license|registr/i;
+
+  // Strategy 1: Find lines that contain both a dollar amount AND fee context
+  const richLines = textLines.filter(l => /\$[\d,]+/.test(l) && feeKeywords.test(l));
+
+  // Strategy 2: Find any lines with dollar amounts + enough nearby context
+  const dollarLines = textLines.filter(l => /\$[\d,]+(?:\.\d{2})?/.test(l));
+
+  // Strategy 3: Extract dollar amounts with surrounding text using regex window
+  const windowMatches = (clean.match(/.{0,150}\$[\d,]+(?:\.\d{2})?.{0,150}/g) ?? []).map(m => m.trim());
+  const relevantWindows = windowMatches.filter(m => feeKeywords.test(m));
+
+  // Pick the best source
+  let candidates: string[] = [];
+  if (richLines.length > 0) candidates = richLines;
+  else if (relevantWindows.length > 0) candidates = relevantWindows;
+  else candidates = dollarLines;
+
+  // Deduplicate
+  const seen = new Set<string>();
+  const unique = candidates.filter(l => {
+    const key = l.replace(/\s+/g, " ").toLowerCase().slice(0, 80);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  return unique.slice(0, 12).join("\n").slice(0, 1100);
+}
+
+function parseFeeTable(text: string): Array<{ tier: string; fee: string; detail: string }> {
+  if (!text) return [];
+
+  const rows: Array<{ tier: string; fee: string; detail: string }> = [];
+
+  // Expand the text: split on newlines AND on sentence boundaries around dollar amounts
+  const lines = text
+    .split(/\n|\.\s+(?=[A-Z])/)
+    .map(l => l.replace(/^\[.*?\]\s*/, "").trim()) // strip section headers like [Fee page extract]
+    .filter(l => l.length > 3 && /\$[\d,]/.test(l));
+
+  for (const line of lines) {
+    // ── Pipe-delimited table rows (preserved from <tr><td> HTML) ──────────
+    if (line.includes("|")) {
+      const parts = line.split("|").map(p => p.trim()).filter(Boolean);
+      if (parts.length >= 2) {
+        const feePart = parts.find(p => /\$[\d,]/.test(p));
+        if (!feePart) continue;
+        const tierPart = parts.find(p => p !== feePart && !/^\$/.test(p) && p.length > 0);
+        const extraParts = parts.filter(p => p !== feePart && p !== tierPart);
+        rows.push({
+          tier: (tierPart ?? line).slice(0, 80),
+          fee: feePart.match(/\$[\d,]+(?:\.\d{2})?(?:[^|]{0,25})?/)?.[0]?.trim() ?? feePart.slice(0, 30),
+          detail: extraParts.join(" — ").slice(0, 120)
+        });
+        continue;
+      }
+    }
+
+    // ── "Tier text: $fee additional context" ──────────────────────────────
+    const colonMatch = line.match(/^([^$:]{2,70}):\s*(\$[\d,]+(?:\.\d{2})?(?:[^,\n]{0,40})?)(.*)$/);
+    if (colonMatch) {
+      rows.push({
+        tier: colonMatch[1].trim().slice(0, 80),
+        fee: colonMatch[2].trim().slice(0, 40),
+        detail: colonMatch[3].trim().replace(/^[,;–\-\s]+/, "").slice(0, 120)
+      });
+      continue;
+    }
+
+    // ── "Tier text is/costs $fee" ─────────────────────────────────────────
+    const textFirstMatch = line.match(/^(.{3,70?}?)\s+(?:is|are|costs?|fee[:\s]|tax[:\s])?\s*(\$[\d,]+(?:\.\d{2})?(?:\s*(?:per|\/|annually|per year|a year)[^,\n]{0,30})?)(.*)$/i);
+    if (textFirstMatch) {
+      const tier = textFirstMatch[1].trim();
+      const fee = textFirstMatch[2].trim();
+      const detail = textFirstMatch[3].trim().replace(/^[,;–\-\s]+/, "").slice(0, 120);
+      if (tier.length >= 2 && fee.length >= 2) {
+        rows.push({ tier: tier.slice(0, 80), fee: fee.slice(0, 40), detail });
+        continue;
+      }
+    }
+
+    // ── "$fee for/per tier" ───────────────────────────────────────────────
+    const dollarFirstMatch = line.match(/^(\$[\d,]+(?:\.\d{2})?(?:\s*(?:per|\/)[^,–\n]{0,25})?)\s+(?:for|per|each)?\s*(.{3,80})$/i);
+    if (dollarFirstMatch) {
+      rows.push({
+        tier: dollarFirstMatch[2].trim().slice(0, 80),
+        fee: dollarFirstMatch[1].trim().slice(0, 40),
+        detail: ""
+      });
+      continue;
+    }
+
+    // ── Fallback: whole line as tier, extract first $ as fee ─────────────
+    const anyDollar = line.match(/\$[\d,]+(?:\.\d{2})?(?:\s*(?:per|\/|\w+){0,4})?/);
+    if (anyDollar) {
+      const fee = anyDollar[0].trim();
+      const tier = line.replace(anyDollar[0], "").replace(/[:\-–]+/g, "").trim().slice(0, 80);
+      if (tier.length >= 3) {
+        rows.push({ tier, fee: fee.slice(0, 40), detail: "" });
+      }
+    }
+  }
+
+  // Deduplicate by tier, require non-empty fee
+  const seen = new Set<string>();
+  return rows.filter(r => {
+    const key = r.tier.toLowerCase().slice(0, 40);
+    if (seen.has(key) || !r.fee.trim() || !r.tier.trim()) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 20);
+}
+
+function buildFeeSummary(
+  serpFeeData: { organic_results?: Array<{ snippet?: string }>; answer_box?: { snippet?: string; answer?: string; list?: string[] } },
+  pageFeeText: string
+): string {
+  const parts: string[] = [];
+
+  // 1. SerpAPI answer box (featured snippet) — most concise and accurate
+  const box = serpFeeData.answer_box;
+  if (box) {
+    const boxText = [box.answer, box.snippet, ...(box.list ?? [])].filter(Boolean).join(" | ");
+    if (boxText && (boxText.includes("$") || /fee|rate|tax/i.test(boxText))) {
+      parts.push(`[Google featured snippet]\n${boxText.slice(0, 400)}`);
+    }
+  }
+
+  // 2. Fee page scraped text (richest source for tiered pricing)
+  if (pageFeeText && !pageFeeText.startsWith("[PDF")) {
+    parts.push(`[Fee page extract]\n${pageFeeText}`);
+  } else if (pageFeeText.startsWith("[PDF")) {
+    parts.push(pageFeeText);
+  }
+
+  // 3. All SerpAPI snippets that mention dollar amounts
+  const snippetLines: string[] = [];
+  for (const r of serpFeeData.organic_results ?? []) {
+    const snip = r.snippet ?? "";
+    if (snip.includes("$") || /\bfee\b|\brate\b|\btax\b/i.test(snip)) {
+      snippetLines.push(snip.trim());
+    }
+  }
+  if (snippetLines.length > 0) {
+    parts.push(`[Search snippets]\n${snippetLines.slice(0, 5).join("\n")}`);
+  }
+
+  return parts.join("\n\n").slice(0, 1500) || "Fee details require manual review.";
 }
 
 export const scrapeCity = action({
@@ -652,21 +762,19 @@ export const scrapeCity = action({
     const licenseResults: Array<{ link?: string; title?: string; snippet?: string }> = d1.organic_results ?? [];
     const feeResults: Array<{ link?: string; title?: string; snippet?: string }> = d2.organic_results ?? [];
 
-    const { businessLicenseUrl, applicationUrl, feeUrl, checklistUrl, downloadUrl, sourceKind } =
+    const { businessLicenseUrl, applicationUrl, applicationPdfUrl, feeUrl, checklistUrl, downloadUrl, sourceKind } =
       classifyUrls([...licenseResults, ...feeResults]);
 
     const finalBusinessUrl = businessLicenseUrl || licenseResults[0]?.link || "";
 
-    let feeSummary = review.feeSummary && review.feeSummary !== "Not scraped yet." ? review.feeSummary : "";
-    if (!feeSummary) {
-      for (const r of feeResults) {
-        const snip = r.snippet ?? "";
-        if (snip.includes("$") || snip.toLowerCase().includes("fee") || snip.toLowerCase().includes("tax")) {
-          feeSummary = snip.length > 400 ? snip.slice(0, 397) + "..." : snip;
-          break;
-        }
-      }
-    }
+    // Fetch the actual fee page to extract dollar amounts
+    const pageFeeText = feeUrl ? await extractFeeFromPage(feeUrl) : "";
+
+    // Build rich fee summary from all sources
+    const feeSummary = buildFeeSummary(d2, pageFeeText);
+
+    // Auto-parse fee summary into structured rows
+    const feeTable = parseFeeTable(feeSummary);
 
     const totalResults = licenseResults.length + feeResults.length;
     const retrievalStatus: "retrieved" | "partial" | "error" =
@@ -681,8 +789,8 @@ export const scrapeCity = action({
 
     const scraperNotes =
       `SerpAPI scraped ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}. ` +
-      `${totalResults} results across 2 queries. ` +
-      `Found: license=${!!finalBusinessUrl}, app=${!!applicationUrl}, fee=${!!feeUrl}, checklist=${!!checklistUrl}.`;
+      `${totalResults} results across 2 queries. Fee page ${pageFeeText ? "fetched" : "not fetched"}. ` +
+      `Found: license=${!!finalBusinessUrl}, app=${!!applicationUrl}, appPdf=${!!applicationPdfUrl}, fee=${!!feeUrl}, checklist=${!!checklistUrl}.`;
 
     await ctx.runMutation(internal.cityLicenseSources.applyScrapedData, {
       reviewId: args.reviewId,
@@ -690,10 +798,12 @@ export const scrapeCity = action({
       retrievalStatus,
       businessLicenseUrl: finalBusinessUrl,
       applicationUrl,
+      applicationPdfUrl,
       feeUrl,
       checklistUrl,
       downloadUrl,
-      feeSummary: feeSummary || "Fee details require manual review.",
+      feeSummary,
+      feeTable: feeTable.length > 0 ? feeTable : undefined,
       scraperNotes,
       confidence
     });
