@@ -8,7 +8,8 @@
     "./domain": "./src/domain.ts",
     "./navigation": "./src/navigation.ts",
     "./site": "./src/site.ts",
-    "./setup": "./src/setup.ts"
+    "./setup": "./src/setup.ts",
+    "./california-cities": "./src/california-cities.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

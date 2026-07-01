@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
 import type { Route } from "next";
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import type { CurrentUser } from "@startupfiles/shared/domain";
 import { businessTypeConfigs } from "@startupfiles/shared/dashboard";
 import {
@@ -108,6 +109,7 @@ export function DashboardLayout({
   showTopProgress = true,
   progress,
   initialUser = null,
+  topRightContent,
   children
 }: {
   title: string;
@@ -123,6 +125,7 @@ export function DashboardLayout({
     actionLabel?: string;
   };
   initialUser?: CurrentUser | null;
+  topRightContent?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -132,12 +135,15 @@ export function DashboardLayout({
   const queriedUser = useQuery(convexApi.currentUser, {});
   const startSetup = useMutation(convexApi.startSetup);
   const user = queriedUser ?? initialUser;
+  const isAdmin = user?.role === "admin";
   const tokenPayload = decodeJwtPayload(token);
   const tokenEmail = readStringClaim(tokenPayload, ["email", "preferred_username"]);
   const tokenName = readStringClaim(tokenPayload, ["name"]);
-  const accountLabel = user?.email ?? tokenEmail ?? user?.name ?? tokenName ?? "Account";
+  const rawAccountLabel = user?.email ?? tokenEmail ?? user?.name ?? tokenName ?? "Account";
+  const [hideEmail, setHideEmail] = useState(false);
+  const accountLabel = hideEmail ? "••••••@•••••.•••" : rawAccountLabel;
   const workspaceName = user?.name ?? tokenName ? `${user?.name ?? tokenName} workspace` : "Founder workspace";
-  const avatarLabel = accountLabel.slice(0, 1).toUpperCase();
+  const avatarLabel = rawAccountLabel.slice(0, 1).toUpperCase();
   const activeBusiness =
     businessTypeConfigs.find(
       (business) =>
@@ -167,19 +173,50 @@ export function DashboardLayout({
           actionHref: "/dashboard/llc" as Route
         });
 
+  const completedStepsCount = resolvedProgress.completedSteps ?? setupSummary?.completedSteps ?? Math.max(resolvedProgress.currentStep - 1, 0);
   const effectiveHref = hasStartedSetup
     ? (`/dashboard/${topbarBusinessType}/setup` as Route)
     : (topbarBusiness ? (`/dashboard/${topbarBusiness.slug}/setup` as Route) : resolvedProgress.actionHref);
-  const effectiveLabel = hasStartedSetup ? "Resume" : (topbarBusiness ? "Start" : resolvedProgress.actionLabel);
+  const effectiveLabel = (hasStartedSetup && completedStepsCount > 0) ? "Resume" : (topbarBusiness ? "Start" : resolvedProgress.actionLabel);
   const isSetupAction = effectiveHref?.endsWith("/setup") ?? false;
+  const substepCompletedCount = setupSummary?.completedSubsteps ?? null;
+  const substepTotalCount = setupSummary?.totalSubsteps ?? null;
   const progressPercent =
-    resolvedProgress.totalSteps > 0
-      ? Math.round(
-          ((resolvedProgress.completedSteps ?? setupSummary?.completedSteps ?? Math.max(resolvedProgress.currentStep - 1, 0)) /
-            resolvedProgress.totalSteps) *
-            100
-        )
-      : 0;
+    substepCompletedCount !== null && substepTotalCount !== null && substepTotalCount > 0
+      ? Math.round((substepCompletedCount / substepTotalCount) * 100)
+      : resolvedProgress.totalSteps > 0
+        ? Math.round((completedStepsCount / resolvedProgress.totalSteps) * 100)
+        : 0;
+  const currentSubstep = setupSummary?.currentSubstep ?? 0;
+  const displayStepLabel = resolvedProgress.currentStep > 0
+    ? `Step ${resolvedProgress.currentStep}.${currentSubstep + 1} of ${resolvedProgress.totalSteps}`
+    : `Step 0 of ${resolvedProgress.totalSteps}`;
+  const isSetupIncomplete = hasStartedSetup && completedStepsCount > 0 && completedStepsCount < resolvedProgress.totalSteps;
+
+  // Notifications
+  const notifications = useQuery(convexApi.getNotifications, { limit: 20 }) ?? [];
+  const unreadCount = useQuery(convexApi.getUnreadCount, {}) ?? 0;
+  const markAllRead = useMutation(convexApi.markAllNotificationsRead);
+  const [bellOpen, setBellOpen] = useState(false);
+  const [toasts, setToasts] = useState<Array<{ id: string; title: string; body: string }>>([]);
+  const seenIds = useRef<Set<string>>(new Set());
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    if (!notifications.length) return;
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      notifications.forEach((n) => seenIds.current.add(n._id));
+      return;
+    }
+    const newOnes = notifications.filter((n) => !seenIds.current.has(n._id));
+    newOnes.forEach((n) => {
+      seenIds.current.add(n._id);
+      const id = n._id;
+      setToasts((prev) => [...prev, { id, title: n.title, body: n.body }]);
+      setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4500);
+    });
+  }, [notifications]);
 
   const onSignOut = async () => {
     await signOut();
@@ -197,6 +234,14 @@ export function DashboardLayout({
       });
     }
   };
+
+  function timeAgo(ts: number) {
+    const diff = Date.now() - ts;
+    if (diff < 60000) return "just now";
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+    return `${Math.floor(diff / 86400000)}d ago`;
+  }
 
   return (
     <div className="grid min-h-screen grid-cols-[292px_minmax(0,1fr)] bg-transparent">
@@ -222,6 +267,37 @@ export function DashboardLayout({
               </Link>
             );
           })}
+
+          {isAdmin ? (
+            <details className="grid gap-1.5 py-0.5" open={pathname.startsWith("/admin")}>
+              <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 rounded-[10px] border border-transparent px-3 py-2.5 text-[0.94rem] font-bold text-[var(--text)] transition-colors hover:border-[color-mix(in_srgb,var(--accent)_10%,transparent)] hover:bg-[color-mix(in_srgb,var(--accent)_8%,transparent)]">
+                <span className="grid min-w-0 gap-0.5">
+                  <span className="inline-flex min-w-0 items-center gap-2.5">
+                    <Chevron open={pathname.startsWith("/admin")} />
+                    <span>Admin</span>
+                  </span>
+                  <span className="text-[0.72rem] font-semibold tracking-[0.01em] text-[var(--muted)]">
+                    Sources and content ops
+                  </span>
+                </span>
+              </summary>
+              <div className="mt-0.5 grid gap-1 border-l border-[color-mix(in_srgb,var(--border)_80%,transparent)] pl-[18px]">
+                {[
+                  { href: "/admin", label: "Overview" },
+                  { href: "/admin/city-license-sources", label: "City licenses" },
+                  { href: "/admin/sources", label: "Sources" },
+                  { href: "/admin/templates", label: "Templates" }
+                ].map((item) => {
+                  const isActive = pathname === item.href;
+                  return (
+                    <Link key={item.href} href={item.href as Route} className={navSubItemClass(isActive)}>
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            </details>
+          ) : null}
 
           <details className="grid gap-1.5 py-0.5" open={pathname.startsWith("/dashboard/facts")}>
             <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 rounded-[10px] border border-transparent px-3 py-2.5 text-[0.94rem] font-bold text-[var(--text)] transition-colors hover:border-[color-mix(in_srgb,var(--accent)_10%,transparent)] hover:bg-[color-mix(in_srgb,var(--accent)_8%,transparent)]">
@@ -262,9 +338,12 @@ export function DashboardLayout({
             const sectionCompletedSteps = sectionSummary?.completedSteps ?? 0;
             const sectionPercent =
               sectionTotalSteps > 0 ? Math.round((sectionCompletedSteps / sectionTotalSteps) * 100) : 0;
-            const sectionStepLabel = sectionSummary
-              ? `Step ${sectionSummary.currentStep} of ${sectionSummary.totalSteps}`
+            const sectionCurrentStep = sectionSummary?.currentStep ?? 0;
+            const sectionCurrentSubstep = sectionSummary?.currentSubstep ?? 0;
+            const sectionStepLabel = sectionCurrentStep > 0
+              ? `Step ${sectionCurrentStep}.${sectionCurrentSubstep + 1} of ${sectionSummary?.totalSteps ?? sectionTotalSteps}`
               : `Step 0 of ${sectionTotalSteps}`;
+            const sectionIsIncomplete = !!sectionSummary && sectionCompletedSteps > 0 && sectionCompletedSteps < sectionTotalSteps;
 
             if (section.disabled) {
               return (
@@ -298,8 +377,8 @@ export function DashboardLayout({
                       <Chevron open={sectionIsActive} />
                       <span>{section.label}</span>
                     </span>
-                    <span className="text-[0.72rem] font-semibold tracking-[0.01em] text-[var(--muted)]">
-                      {sectionStepLabel}
+                    <span className={`text-[0.72rem] font-semibold tracking-[0.01em] ${sectionIsIncomplete ? "text-[#f59e0b]" : "text-[var(--muted)]"}`}>
+                      {sectionStepLabel}{sectionIsIncomplete ? " · Incomplete" : ""}
                     </span>
                   </span>
                   <span className="inline-flex shrink-0 items-center gap-2">
@@ -323,6 +402,18 @@ export function DashboardLayout({
         </nav>
 
         <div className="grid content-end gap-3">
+          <button
+            type="button"
+            onClick={() => setHideEmail((v) => !v)}
+            className={`flex items-center justify-between rounded-[10px] border px-3 py-2 text-[0.75rem] font-bold tracking-[0.04em] transition-colors ${
+              hideEmail
+                ? "border-[color-mix(in_srgb,#f59e0b_40%,transparent)] bg-[color-mix(in_srgb,#f59e0b_12%,transparent)] text-[#f59e0b]"
+                : "border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]"
+            }`}
+          >
+            <span>{hideEmail ? "Email hidden" : "Hide email"}</span>
+            <span className="font-mono text-[0.68rem] tracking-[0.08em]">DEV</span>
+          </button>
           <details className="relative">
             <summary className="grid min-h-[52px] cursor-pointer list-none grid-cols-[34px_minmax(0,1fr)_12px] items-center gap-2.5 rounded-[14px] border border-[var(--border)] bg-[var(--panel-strong)] p-2">
               <span className="inline-grid h-[34px] w-[34px] place-items-center rounded-[10px] bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] font-extrabold text-[var(--accent-strong)]">
@@ -373,6 +464,29 @@ export function DashboardLayout({
       </aside>
 
       <main className="relative z-[2] min-w-0 pb-[42px]">
+        {/* Toast overlay */}
+        <div className="fixed right-4 top-[92px] z-[100] grid gap-2.5 pointer-events-none">
+          {toasts.map((toast) => (
+            <div
+              key={toast.id}
+              className="pointer-events-auto flex min-w-[300px] max-w-[380px] items-start gap-3 rounded-2xl border border-[color-mix(in_srgb,var(--accent)_30%,transparent)] bg-[var(--panel-strong)] p-4 shadow-[0_16px_48px_rgba(2,6,23,0.32)] animate-in slide-in-from-right-4 fade-in duration-300"
+            >
+              <span className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-[var(--accent)]" />
+              <div className="min-w-0">
+                <strong className="block text-[0.88rem]">{toast.title}</strong>
+                <p className="mt-0.5 text-[0.8rem] text-[var(--muted)]">{toast.body}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
+                className="ml-auto shrink-0 text-[var(--muted)] hover:text-[var(--text)]"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+
         <header className="sticky top-0 z-[9] grid min-h-[68px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[18px] border-b border-[var(--border)] bg-white px-[22px] py-[10px] backdrop-blur-[20px] [html[data-theme='dark']_&]:bg-[rgba(11,17,32,0.94)]">
           <div className="flex items-center">
             <ThemeToggle />
@@ -385,41 +499,109 @@ export function DashboardLayout({
               {title || "Founder console"}
             </strong>
           </div>
-          {showTopProgress ? (
-            <div className="flex min-w-[min(520px,100%)] items-center gap-3.5">
-              <div className="grid min-w-[152px] gap-0.5">
-                <strong className="text-[0.88rem]">
-                  Step {resolvedProgress.currentStep} of {resolvedProgress.totalSteps}
-                </strong>
-                <span className="text-[0.78rem] text-[var(--muted)]">
-                  {resolvedProgress.label ?? `${progressPercent}% completed`}
-                </span>
-              </div>
-              <div
-                className="h-2 flex-[1_1_180px] overflow-hidden rounded-full bg-[color-mix(in_srgb,var(--muted)_18%,transparent)]"
-                role="progressbar"
-                aria-valuemin={0}
-                aria-valuemax={resolvedProgress.totalSteps}
-                aria-valuenow={resolvedProgress.currentStep}
+          <div className="flex items-center gap-3">
+            {/* Bell button */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setBellOpen((v) => !v)}
+                className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--muted)] transition-colors hover:text-[var(--text)]"
+                aria-label="Notifications"
               >
-                <span
-                  className="block h-full rounded-full bg-[linear-gradient(90deg,var(--accent),color-mix(in_srgb,var(--accent)_45%,#22c55e))]"
-                  style={{ width: `${progressPercent}%` }}
-                />
-              </div>
-              {effectiveHref ? (
-                <button type="button" className={ui.buttonPrimary} onClick={onTopbarAction}>
-                  {effectiveLabel ?? "Continue"}
-                </button>
-              ) : (
-                <button type="button" className={ui.buttonSecondary} disabled>
-                  Continue
-                </button>
+                <svg viewBox="0 0 20 20" fill="currentColor" className="h-4.5 w-4.5 h-[18px] w-[18px]">
+                  <path d="M10 2a6 6 0 0 0-6 6v2.586l-.707.707A1 1 0 0 0 4 13h12a1 1 0 0 0 .707-1.707L16 10.586V8a6 6 0 0 0-6-6zm0 16a2 2 0 0 1-2-2h4a2 2 0 0 1-2 2z"/>
+                </svg>
+                {unreadCount > 0 && (
+                  <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[var(--accent)] px-1 text-[0.6rem] font-bold text-white">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </button>
+              {bellOpen && (
+                <div className="absolute right-0 top-[calc(100%+8px)] z-[20] w-[340px] rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)] shadow-[0_18px_50px_rgba(2,6,23,0.28)]">
+                  <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
+                    <strong className="text-[0.92rem]">Notifications</strong>
+                    <div className="flex items-center gap-2">
+                      {unreadCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => void markAllRead({})}
+                          className="text-[0.75rem] text-[var(--accent)] hover:underline"
+                        >
+                          Mark all read
+                        </button>
+                      )}
+                      <button type="button" onClick={() => setBellOpen(false)} className="text-[var(--muted)] hover:text-[var(--text)]">✕</button>
+                    </div>
+                  </div>
+                  <div className="max-h-[360px] overflow-y-auto">
+                    {notifications.length === 0 ? (
+                      <p className="px-4 py-6 text-center text-[0.85rem] text-[var(--muted)]">No notifications yet.</p>
+                    ) : (
+                      notifications.slice(0, 10).map((n) => (
+                        <div
+                          key={n._id}
+                          className={`flex items-start gap-3 border-b border-[var(--border)] px-4 py-3 last:border-0 ${!n.isRead ? "bg-[color-mix(in_srgb,var(--accent)_5%,transparent)]" : ""}`}
+                        >
+                          <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${!n.isRead ? "bg-[var(--accent)]" : "bg-transparent border border-[var(--border)]"}`} />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[0.85rem] font-bold">{n.title}</p>
+                            <p className="mt-0.5 text-[0.8rem] text-[var(--muted)]">{n.body}</p>
+                            <p className="mt-1 text-[0.72rem] text-[var(--muted)]">{timeAgo(n.createdAt)}</p>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <div className="border-t border-[var(--border)] px-4 py-2.5">
+                    <Link
+                      href={"/dashboard/notifications" as Route}
+                      className="block text-center text-[0.82rem] text-[var(--accent)] hover:underline"
+                      onClick={() => setBellOpen(false)}
+                    >
+                      View all notifications
+                    </Link>
+                  </div>
+                </div>
               )}
             </div>
-          ) : (
-            <div />
-          )}
+
+            {showTopProgress ? (
+              <div className="flex items-center gap-3.5">
+                <div className="grid min-w-[152px] gap-0.5">
+                  <strong className="text-[0.88rem]">
+                    {displayStepLabel}
+                  </strong>
+                  <span className={`text-[0.78rem] ${isSetupIncomplete ? "font-bold text-[#f59e0b]" : "text-[var(--muted)]"}`}>
+                    {isSetupIncomplete ? `Incomplete · ${progressPercent}%` : (resolvedProgress.label ?? `${progressPercent}% completed`)}
+                  </span>
+                </div>
+                <div
+                  className="h-2 flex-[1_1_180px] overflow-hidden rounded-full bg-[color-mix(in_srgb,var(--muted)_18%,transparent)]"
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={resolvedProgress.totalSteps}
+                  aria-valuenow={resolvedProgress.currentStep}
+                >
+                  <span
+                    className="block h-full rounded-full bg-[linear-gradient(90deg,var(--accent),color-mix(in_srgb,var(--accent)_45%,#22c55e))]"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+                {effectiveHref ? (
+                  <button type="button" className={ui.buttonPrimary} onClick={onTopbarAction}>
+                    {effectiveLabel ?? "Continue"}
+                  </button>
+                ) : (
+                  <button type="button" className={ui.buttonSecondary} disabled>
+                    Continue
+                  </button>
+                )}
+              </div>
+            ) : topRightContent ? (
+              <div className="flex items-center">{topRightContent}</div>
+            ) : null}
+          </div>
         </header>
 
         <section className="grid max-w-[1240px] gap-[18px] px-[22px]">

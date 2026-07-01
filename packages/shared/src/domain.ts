@@ -1,4 +1,4 @@
-export type UserRole = "owner" | "admin";
+export type UserRole = "user" | "admin";
 
 export type BusinessPhase = "sole_proprietor" | "llc_ready" | "llc_formed";
 

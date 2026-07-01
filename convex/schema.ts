@@ -7,7 +7,7 @@ export default defineSchema({
   users: defineTable({
     email: v.string(),
     name: v.string(),
-    role: v.union(v.literal("owner"), v.literal("admin")),
+    role: v.union(v.literal("user"), v.literal("admin"), v.literal("owner")),
     createdAt: v.number(),
     updatedAt: v.number()
   }).index("by_email", ["email"]),
@@ -138,6 +138,23 @@ export default defineSchema({
     dbaCounty: v.optional(v.string()),
     dbaNewspaperName: v.optional(v.string()),
     dbaPublicationFiled: v.optional(v.boolean()),
+    cityLicenseCity: v.optional(v.string()),
+    cityLicenseCounty: v.optional(v.string()),
+    cityLicenseBusinessAddress: v.optional(v.string()),
+    cityLicenseBusinessCity: v.optional(v.string()),
+    cityLicenseBusinessZip: v.optional(v.string()),
+    cityLicensePhone: v.optional(v.string()),
+    cityLicenseEmail: v.optional(v.string()),
+    cityLicenseStartDate: v.optional(v.string()),
+    cityLicenseActivity: v.optional(v.string()),
+    cityLicenseIsHomeBased: v.optional(v.boolean()),
+    cityLicenseEmployeeCount: v.optional(v.string()),
+    cityLicenseGrossReceipts: v.optional(v.string()),
+    cityLicenseBusinessCategory: v.optional(v.string()),
+    cityLicenseWebsite: v.optional(v.string()),
+    currentSubstep: v.optional(v.number()),
+    completedSubsteps: v.optional(v.number()),
+    totalSubsteps: v.optional(v.number()),
     isCompleted: v.boolean(),
     startedAt: v.optional(v.number()),
     completedAt: v.optional(v.number()),
@@ -146,6 +163,29 @@ export default defineSchema({
   })
     .index("by_workspace_and_type", ["workspaceId", "businessType"])
     .index("by_workspace", ["workspaceId"]),
+  setupDocuments: defineTable({
+    workspaceId: v.id("workspaces"),
+    businessType: v.string(),
+    category: v.string(),
+    storageId: v.id("_storage"),
+    fileName: v.string(),
+    fileType: v.string(),
+    fileSize: v.number(),
+    createdAt: v.number()
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_type_category", ["workspaceId", "businessType", "category"]),
+  notifications: defineTable({
+    workspaceId: v.id("workspaces"),
+    type: v.string(),
+    title: v.string(),
+    body: v.string(),
+    isRead: v.boolean(),
+    href: v.optional(v.string()),
+    createdAt: v.number()
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_created", ["workspaceId", "createdAt"]),
   auditEvents: defineTable({
     workspaceId: v.optional(v.id("workspaces")),
     userId: v.optional(v.id("users")),
@@ -154,5 +194,49 @@ export default defineSchema({
     entityId: v.optional(v.string()),
     metadata: v.optional(v.any()),
     createdAt: v.number()
-  }).index("by_workspace", ["workspaceId"])
+  }).index("by_workspace", ["workspaceId"]),
+  cityLicenseSourceReviews: defineTable({
+    city: v.string(),
+    county: v.string(),
+    populationRank: v.number(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("approved"),
+      v.literal("rejected"),
+      v.literal("needs_review")
+    ),
+    sourceKind: v.union(
+      v.literal("html"),
+      v.literal("pdf"),
+      v.literal("js"),
+      v.literal("cms"),
+      v.literal("unknown")
+    ),
+    retrievalStatus: v.union(
+      v.literal("not_run"),
+      v.literal("retrieved"),
+      v.literal("partial"),
+      v.literal("cant_retrieve"),
+      v.literal("error")
+    ),
+    businessLicenseUrl: v.string(),
+    applicationUrl: v.string(),
+    feeUrl: v.string(),
+    checklistUrl: v.string(),
+    downloadUrl: v.string(),
+    feeSummary: v.string(),
+    requirementsSummary: v.string(),
+    applicationFields: v.array(v.string()),
+    scraperNotes: v.string(),
+    reviewerNotes: v.string(),
+    confidence: v.number(),
+    lastScrapedAt: v.optional(v.number()),
+    approvedAt: v.optional(v.number()),
+    approvedBy: v.optional(v.id("users")),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index("by_city", ["city"])
+    .index("by_status", ["status"])
+    .index("by_population_rank", ["populationRank"])
 });

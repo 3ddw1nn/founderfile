@@ -32,7 +32,7 @@ export default async function DashboardAccountPage() {
           <article className={ui.infoCard}>
             <div>
               <strong className="block text-[1rem]">Role</strong>
-              <p className="mt-2 text-[var(--muted)]">{currentUser?.role ?? "owner"}</p>
+              <p className="mt-2 text-[var(--muted)]">{currentUser?.role ?? "user"}</p>
             </div>
           </article>
         </div>

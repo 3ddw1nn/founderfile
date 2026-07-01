@@ -3,6 +3,12 @@ import { convexAuth } from "@convex-dev/auth/server";
 import type { Id } from "./_generated/dataModel";
 import { sendResendEmail, getDefaultFromEmail } from "./lib/resend";
 
+const ADMIN_EMAILS = new Set(["ehleedev@gmail.com"]);
+
+function roleForEmail(email: string) {
+  return ADMIN_EMAILS.has(email.trim().toLowerCase()) ? "admin" : "user";
+}
+
 async function ensureDefaultWorkspace(
   ctx: {
     db: {
@@ -148,7 +154,7 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
             typeof params.name === "string" && params.name.trim().length > 0
               ? params.name.trim()
               : email.split("@")[0] ?? "Founder",
-          role: "owner",
+          role: roleForEmail(email),
           createdAt: now,
           updatedAt: now
         };
@@ -157,6 +163,22 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   ],
   callbacks: {
     async afterUserCreatedOrUpdated(ctx, args) {
+      const storedUser = await (ctx as any).db.get(args.userId);
+      const emailFromProfile =
+        typeof args.profile.email === "string"
+          ? args.profile.email.trim().toLowerCase()
+          : "";
+      const emailFromStore =
+        typeof storedUser?.email === "string"
+          ? storedUser.email.trim().toLowerCase()
+          : "";
+      const email = emailFromProfile || emailFromStore;
+      const nextRole = roleForEmail(email);
+      await (ctx as any).db.patch(args.userId, {
+        role: nextRole,
+        updatedAt: Date.now()
+      });
+
       if (args.existingUserId !== null) {
         return;
       }

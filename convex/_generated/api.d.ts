@@ -10,8 +10,11 @@
 
 import type * as app from "../app.js";
 import type * as auth from "../auth.js";
+import type * as cityLicenseSources from "../cityLicenseSources.js";
+import type * as documents from "../documents.js";
 import type * as http from "../http.js";
 import type * as lib_resend from "../lib/resend.js";
+import type * as notifications from "../notifications.js";
 import type * as setup from "../setup.js";
 
 import type {
@@ -23,8 +26,11 @@ import type {
 declare const fullApi: ApiFromModules<{
   app: typeof app;
   auth: typeof auth;
+  cityLicenseSources: typeof cityLicenseSources;
+  documents: typeof documents;
   http: typeof http;
   "lib/resend": typeof lib_resend;
+  notifications: typeof notifications;
   setup: typeof setup;
 }>;
 

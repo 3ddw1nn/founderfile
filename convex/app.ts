@@ -110,6 +110,18 @@ type TaskSeed = Omit<RoadmapTaskView, "id">;
 const DEFAULT_WARNING =
   "StartupFiles provides structured guidance and document prep support. Verify filings and get professional review when needed.";
 
+const ADMIN_EMAILS = new Set(["ehleedev@gmail.com"]);
+
+function roleForEmail(email: string) {
+  return ADMIN_EMAILS.has(email.trim().toLowerCase()) ? "admin" : "user";
+}
+
+function normalizeRole(user: any): "user" | "admin" {
+  if (!user) return "user";
+  if (user.role === "admin" || user.role === "owner") return "admin";
+  return roleForEmail(user.email ?? "");
+}
+
 export const currentUser = query({
   args: {},
   handler: async (ctx): Promise<CurrentUser | null> => {
@@ -127,7 +139,7 @@ export const currentUser = query({
       id: userId,
       email: user.email,
       name: user.name,
-      role: user.role
+      role: normalizeRole(user)
     };
   }
 });
@@ -285,7 +297,7 @@ export const resetDb = mutation({
     if (!userId) throw new Error("You must be signed in.");
 
     const user = await ctx.db.get(userId);
-    if (!user || user.role !== "owner") throw new Error("Only the owner can reset the database.");
+    if (!user || normalizeRole(user) !== "admin") throw new Error("Only an admin can reset the database.");
 
     // Delete setup sessions
     const sessions = await ctx.db.query("setupSessions").collect();
@@ -330,6 +342,44 @@ export const resetDb = mutation({
     }
 
     return true;
+  }
+});
+
+export const normalizeUserRoles = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("You must be signed in.");
+
+    const current = await ctx.db.get(userId);
+    if (!current || normalizeRole(current) !== "admin") {
+      throw new Error("Admin access required.");
+    }
+
+    const users = await ctx.db.query("users").take(100);
+    const now = Date.now();
+    let updated = 0;
+
+    for (const user of users) {
+      const nextRole = roleForEmail(user.email);
+      if (user.role !== nextRole) {
+        await ctx.db.patch(user._id, {
+          role: nextRole,
+          updatedAt: now
+        });
+        updated += 1;
+      }
+    }
+
+    await ctx.db.insert("auditEvents", {
+      userId,
+      action: "users.roles_normalized",
+      entityType: "users",
+      metadata: { updated },
+      createdAt: now
+    });
+
+    return { updated };
   }
 });
 
@@ -647,7 +697,7 @@ function buildDashboardPayload(userId: GenericId<"users">, user: any, data: Work
       id: userId,
       email: user.email,
       name: user.name,
-      role: user.role
+      role: normalizeRole(user)
     },
     workspace: {
       id: data.workspace._id,

@@ -105,6 +105,18 @@ type SetupSessionDoc = {
   dbaCounty?: string;
   dbaNewspaperName?: string;
   dbaPublicationFiled?: boolean;
+  cityLicenseCity?: string;
+  cityLicenseCounty?: string;
+  cityLicenseBusinessAddress?: string;
+  cityLicenseBusinessCity?: string;
+  cityLicenseBusinessZip?: string;
+  cityLicensePhone?: string;
+  cityLicenseEmail?: string;
+  cityLicenseStartDate?: string;
+  cityLicenseActivity?: string;
+  cityLicenseIsHomeBased?: boolean;
+  cityLicenseEmployeeCount?: string;
+  cityLicenseGrossReceipts?: string;
   isCompleted: boolean;
   startedAt?: number;
   completedAt?: number;
@@ -187,8 +199,11 @@ export const getSetupOverview = query({
         return {
           businessType: session.businessType,
           currentStep: normalized.currentStep,
+          currentSubstep: (session as any).currentSubstep ?? 0,
           totalSteps,
           completedSteps,
+          completedSubsteps: (session as any).completedSubsteps ?? null,
+          totalSubsteps: (session as any).totalSubsteps ?? null,
           updatedAt: session.updatedAt,
           isCompleted: session.isCompleted
         };
@@ -276,6 +291,23 @@ export const saveSetupStep = mutation({
     dbaCounty: v.optional(v.string()),
     dbaNewspaperName: v.optional(v.string()),
     dbaPublicationFiled: v.optional(v.boolean()),
+    cityLicenseCity: v.optional(v.string()),
+    cityLicenseCounty: v.optional(v.string()),
+    cityLicenseBusinessAddress: v.optional(v.string()),
+    cityLicenseBusinessCity: v.optional(v.string()),
+    cityLicenseBusinessZip: v.optional(v.string()),
+    cityLicensePhone: v.optional(v.string()),
+    cityLicenseEmail: v.optional(v.string()),
+    cityLicenseStartDate: v.optional(v.string()),
+    cityLicenseActivity: v.optional(v.string()),
+    cityLicenseIsHomeBased: v.optional(v.boolean()),
+    cityLicenseEmployeeCount: v.optional(v.string()),
+    cityLicenseGrossReceipts: v.optional(v.string()),
+    cityLicenseBusinessCategory: v.optional(v.string()),
+    cityLicenseWebsite: v.optional(v.string()),
+    currentSubstep: v.optional(v.number()),
+    completedSubsteps: v.optional(v.number()),
+    totalSubsteps: v.optional(v.number()),
     isCompleted: v.optional(v.boolean())
   },
   handler: async (ctx, args) => {
@@ -339,10 +371,36 @@ export const saveSetupStep = mutation({
     if (args.dbaPublicationFiled !== undefined) {
       patch.dbaPublicationFiled = args.dbaPublicationFiled;
     }
+    if (args.cityLicenseCity !== undefined) patch.cityLicenseCity = args.cityLicenseCity;
+    if (args.cityLicenseCounty !== undefined) patch.cityLicenseCounty = args.cityLicenseCounty;
+    if (args.cityLicenseBusinessAddress !== undefined) patch.cityLicenseBusinessAddress = args.cityLicenseBusinessAddress;
+    if (args.cityLicenseBusinessCity !== undefined) patch.cityLicenseBusinessCity = args.cityLicenseBusinessCity;
+    if (args.cityLicenseBusinessZip !== undefined) patch.cityLicenseBusinessZip = args.cityLicenseBusinessZip;
+    if (args.cityLicensePhone !== undefined) patch.cityLicensePhone = args.cityLicensePhone;
+    if (args.cityLicenseEmail !== undefined) patch.cityLicenseEmail = args.cityLicenseEmail;
+    if (args.cityLicenseStartDate !== undefined) patch.cityLicenseStartDate = args.cityLicenseStartDate;
+    if (args.cityLicenseActivity !== undefined) patch.cityLicenseActivity = args.cityLicenseActivity;
+    if (args.cityLicenseIsHomeBased !== undefined) patch.cityLicenseIsHomeBased = args.cityLicenseIsHomeBased;
+    if (args.cityLicenseEmployeeCount !== undefined) patch.cityLicenseEmployeeCount = args.cityLicenseEmployeeCount;
+    if (args.cityLicenseGrossReceipts !== undefined) patch.cityLicenseGrossReceipts = args.cityLicenseGrossReceipts;
+    if (args.cityLicenseBusinessCategory !== undefined) patch.cityLicenseBusinessCategory = args.cityLicenseBusinessCategory;
+    if (args.cityLicenseWebsite !== undefined) patch.cityLicenseWebsite = args.cityLicenseWebsite;
+    if (args.currentSubstep !== undefined) patch.currentSubstep = args.currentSubstep;
+    if (args.completedSubsteps !== undefined) patch.completedSubsteps = args.completedSubsteps;
+    if (args.totalSubsteps !== undefined) patch.totalSubsteps = args.totalSubsteps;
     if (args.isCompleted) {
       patch.isCompleted = true;
       patch.completedAt = now;
     }
+
+    // Detect newly completed steps to fire notifications
+    const oldStatuses = session?.stepStatuses ?? [];
+    const newlyCompletedSteps = normalized.stepStatuses.reduce((acc: number[], status: string, idx: number) => {
+      if ((status === "complete" || status === "not_needed") && oldStatuses[idx] !== "complete" && oldStatuses[idx] !== "not_needed") {
+        acc.push(idx + 1);
+      }
+      return acc;
+    }, []);
 
     if (!session) {
       await ctx.db.insert("setupSessions", {
@@ -359,6 +417,118 @@ export const saveSetupStep = mutation({
     }
 
     await ctx.db.patch(session._id, patch);
+
+    // Create notifications for newly completed steps
+    for (const stepNumber of newlyCompletedSteps) {
+      const stepConfig = getSetupConfig(args.businessType);
+      const step = stepConfig?.steps.find((s: SetupStep) => s.stepNumber === stepNumber);
+      await ctx.db.insert("notifications", {
+        workspaceId: workspace._id,
+        type: "step_complete",
+        title: `Step ${stepNumber} complete`,
+        body: step ? `"${step.title}" has been marked complete.` : `Step ${stepNumber} is done.`,
+        isRead: false,
+        href: `/dashboard/${args.businessType}/setup`,
+        createdAt: now
+      });
+    }
+
+    return true;
+  }
+});
+
+export const resetSetupStep = mutation({
+  args: {
+    businessType: v.string(),
+    stepNumber: v.number()
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("You must be signed in.");
+
+    const workspace = await ctx.db
+      .query("workspaces")
+      .withIndex("by_owner", (q: any) => q.eq("ownerUserId", userId))
+      .unique();
+    if (!workspace) throw new Error("Workspace not found.");
+
+    const session = await ctx.db
+      .query("setupSessions")
+      .withIndex("by_workspace_and_type", (q: any) =>
+        q.eq("workspaceId", workspace._id).eq("businessType", args.businessType)
+      )
+      .unique();
+    if (!session) throw new Error("Session not found.");
+
+    const nextStatuses = [...session.stepStatuses];
+    nextStatuses[args.stepNumber - 1] = "in_progress";
+
+    const stepFields: Record<number, Record<string, undefined>> = {
+      1: {
+        isEntityApplication: undefined,
+        legalFirstName: undefined,
+        legalMiddleName: undefined,
+        legalLastName: undefined,
+        legalSuffix: undefined
+      },
+      2: {
+        needsDba: undefined,
+        dbaName: undefined,
+        dbaCounty: undefined,
+        dbaNewspaperName: undefined,
+        dbaPublicationFiled: undefined
+      },
+      3: {
+        cityLicenseCity: undefined,
+        cityLicenseCounty: undefined,
+        cityLicenseBusinessAddress: undefined,
+        cityLicenseBusinessCity: undefined,
+        cityLicenseBusinessZip: undefined,
+        cityLicensePhone: undefined,
+        cityLicenseEmail: undefined,
+        cityLicenseStartDate: undefined,
+        cityLicenseActivity: undefined,
+        cityLicenseIsHomeBased: undefined,
+        cityLicenseEmployeeCount: undefined,
+        cityLicenseGrossReceipts: undefined
+      }
+    };
+
+    const clearFields = stepFields[args.stepNumber] ?? {};
+    await ctx.db.patch(session._id, {
+      currentStep: args.stepNumber,
+      stepStatuses: nextStatuses,
+      updatedAt: Date.now(),
+      ...clearFields
+    } as any);
+
+    return true;
+  }
+});
+
+export const resetSetup = mutation({
+  args: {
+    businessType: v.string()
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("You must be signed in.");
+
+    const workspace = await ctx.db
+      .query("workspaces")
+      .withIndex("by_owner", (q: any) => q.eq("ownerUserId", userId))
+      .unique();
+    if (!workspace) throw new Error("Workspace not found.");
+
+    const session = await ctx.db
+      .query("setupSessions")
+      .withIndex("by_workspace_and_type", (q: any) =>
+        q.eq("workspaceId", workspace._id).eq("businessType", args.businessType)
+      )
+      .unique();
+    if (!session) return true;
+
+    await ctx.db.delete(session._id);
     return true;
   }
 });
